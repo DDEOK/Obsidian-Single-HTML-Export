@@ -1122,6 +1122,12 @@ class SingleHtmlExportPlugin extends Plugin {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="single-html-export v${this.escapeHtml(version)}">
+  <!-- Third-party notices for what is inlined in this file:
+       · Lucide (ISC) https://lucide.dev — icon artwork. (c) Lucide Icons and Contributors;
+         Feather-derived parts (c) Cole Bemis (MIT).
+       · jelly-ui (MIT) https://jelly-ui.com — design tokens and component vocabulary.
+       고지를 저장소 README 에만 두지 않는 이유: 이 파일은 손을 떠나 **혼자 돌아다니는 사본**이고,
+       두 라이선스 다 「사본에 고지를 포함하라」 고 요구한다. 저장소를 못 보는 사본이 기본값이다. -->
   <title>${this.escapeHtml(title)}</title>
   <style>
 ${this.getJellyStyles()}

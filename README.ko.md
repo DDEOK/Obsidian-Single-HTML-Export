@@ -50,6 +50,18 @@ iOS 파일 앱 미리보기나 안드로이드 HTML 뷰어 앱은 JavaScript 를
 
 아직 커뮤니티 목록에 없습니다. [BRAT](https://github.com/TfTHacker/obsidian42-brat) 으로 이 저장소를 등록하거나, `main.js`·`manifest.json`·`styles.css` 를 `<볼트>/.obsidian/plugins/single-html-export/` 에 복사하세요.
 
+## 출처
+
+내보낸 파일에 런타임 의존성은 없지만, **생김새와 아이콘은 남의 작업**이다. 아래 고지는 내보낸 HTML 파일 안에도 주석으로 함께 들어간다 — 그 파일은 저장소를 못 보는 채로 혼자 돌아다니기 때문이다.
+
+| 프로젝트 | 라이선스 | 쓰는 곳 |
+|---|---|---|
+| [Lucide](https://lucide.dev) | ISC | 인라인 SVG 아이콘(테마 토글·복사). © Lucide Icons and Contributors, Feather 유래분 © Cole Bemis (MIT) |
+| [jelly-ui](https://jelly-ui.com) | MIT | 내보낸 페이지가 따르는 디자인 토큰과 컴포넌트 어휘 |
+| [Pretendard](https://github.com/orioncactus/pretendard) | OFL 1.1 | 폰트 스택에서 `local()` 로 이름만 참조 — **임베드하지 않는다**(한글 웹폰트는 문서당 1~2MB) |
+
+구문 강조는 옵시디언이 이미 내주는 Prism 토큰 클래스에 색만 입힌 것이고, Mermaid 는 옵시디언 엔진이 그린 결과를 SVG 로 굽는다 — 둘 다 이 플러그인이 번들하지 않는다.
+
 ## 라이선스
 
 MIT © DDEOK

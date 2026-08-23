@@ -64,6 +64,18 @@ Not in the community plugin directory yet. Install with [BRAT](https://github.co
 - **Electron**: `window.require('electron')` is used only behind `Platform.isDesktopApp`, for the save dialog and "show in folder".
 - Source comments are in Korean — they record *why* each constraint exists, and most of them are scars from a real bug. Design decisions live in the author's notes; the README summarizes the conclusions.
 
+## Credits
+
+The exported file bundles no runtime dependencies, but its look and its icons come from other people's work. These notices are also embedded as a comment in every exported HTML file, because that file travels on its own.
+
+| Project | License | Used for |
+|---|---|---|
+| [Lucide](https://lucide.dev) | ISC | The inline SVG icons (theme toggle, copy). © Lucide Icons and Contributors; Feather-derived parts © Cole Bemis (MIT) |
+| [jelly-ui](https://jelly-ui.com) | MIT | The design tokens and component vocabulary the exported page follows |
+| [Pretendard](https://github.com/orioncactus/pretendard) | OFL 1.1 | Referenced by name in the font stack via `local()` — **not embedded**, so the file stays small and falls back to system fonts |
+
+Syntax highlighting reuses the Prism token classes Obsidian already emits, and Mermaid diagrams are rendered by Obsidian's own engine before being baked to SVG — neither library is bundled by this plugin.
+
 ## License
 
 MIT © DDEOK
