@@ -6,6 +6,10 @@ Works on **desktop and mobile**, including a native share sheet on iOS.
 
 *[한국어](README.ko.md)*
 
+| Preview before anything is written | The exported file, opened in a browser |
+|---|---|
+| ![Export preview popup inside Obsidian](docs/preview-modal.png) | ![An exported page rendered in a browser](docs/exported-page.png) |
+
 ## Features
 
 - **Everything in one file** — images are embedded as data URIs, Mermaid diagrams are pre-rendered to static SVG, syntax highlighting is bundled as CSS. The file opens offline, forever.
