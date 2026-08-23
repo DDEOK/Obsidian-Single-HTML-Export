@@ -10,6 +10,10 @@ on:
 
 permissions:
   contents: write
+  # 아래 둘은 아티팩트 증명(provenance attestation)을 만들기 위한 것이다 — 서명에 쓰는
+  # 짧은 수명의 OIDC 토큰(id-token)과 증명 기록 권한(attestations).
+  id-token: write
+  attestations: write
 
 jobs:
   release:
@@ -25,6 +29,17 @@ jobs:
             echo "tag $TAG != manifest.json $MANIFEST"
             exit 1
           fi
+
+      # 배포 파일이 «이 저장소의 이 워크플로에서 나왔다»는 것을 서명으로 남긴다. 플러그인은
+      # 빌드 없이 파일을 그대로 올리는 구조라 자산이 바꿔치기돼도 눈으로는 구별되지 않는데,
+      # 증명이 있으면 `gh attestation verify` 로 출처를 검증할 수 있다.
+      - name: Attest release assets
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
 
       - name: Create release
         env:
