@@ -52,6 +52,18 @@ Some viewers — the iOS Files preview, simple HTML viewer apps — don't run Ja
 - Fonts are not embedded (embedding CJK fonts would add 1–2 MB per file). The page uses [Pretendard](https://github.com/orioncactus/pretendard) if installed, otherwise your system fonts.
 - Internal wikilinks are kept as styled text — they have nowhere to point outside your vault.
 
+## What the plugin touches
+
+The community directory scan flags the capabilities below. Here is what each one is for.
+
+| Capability | Why |
+|---|---|
+| **Filesystem outside the vault** | Only on desktop, and only after you pick a location in the save dialog — the file you asked for is written with Node's `fs`. Obsidian has no API for writing outside the vault. On Android the same role is played by the Capacitor `Filesystem` bridge, writing to `Download/Obsidian HTML/`. |
+| **Clipboard** | Write only, never read. The saved path is copied so you can paste it into a file manager, and the diagnostics command copies its report. |
+| **Local storage** | The plugin stores nothing. It reads the app's own language setting as a fallback when the locale isn't otherwise available. The exported page uses `localStorage` for its own theme toggle, but that runs in the exported file — not inside Obsidian. |
+
+Nothing is sent anywhere: the plugin makes no network requests, and an exported file has no external references.
+
 ## Installation
 
 **From the community plugin directory** (once approved): Settings → Community plugins → Browse → search "Single HTML Export".

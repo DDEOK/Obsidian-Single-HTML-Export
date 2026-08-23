@@ -1,4 +1,4 @@
-const { Plugin, MarkdownRenderer, Component, TFile, Notice, Modal, Platform, arrayBufferToBase64 } = require('obsidian');
+const { Plugin, MarkdownRenderer, Component, TFile, Notice, Modal, Platform, moment, arrayBufferToBase64 } = require('obsidian');
 
 // 인라인 SVG 아이콘 — 이모지를 쓰지 않는다. 이모지는 OS 폰트가 그리므로 윈도우·맥·안드로이드에서
 // 모양과 색이 제각각이고, 인쇄하면 컬러 비트맵으로 나간다. SVG 는 currentColor 를 따라 테마와 함께 돈다.
@@ -180,11 +180,27 @@ const STRINGS = {
 
 /**
  * 옵시디언 앱의 표시 언어. 매번 다시 읽는다 — 사용자가 설정에서 바꾸면 다음 문장부터 따라간다.
- * 언어 키는 옵시디언이 `localStorage` 에 두는 값이고, 없으면(기본값) 영어다.
+ *
+ * 옵시디언이 앱 언어에 맞춰 설정해 두는 `moment` 로케일을 먼저 본다. 예전에는 `localStorage`
+ * 의 언어 키를 읽었는데, **그 자리를 쓰는 것만으로 「플러그인이 localStorage 에 데이터를
+ * 보관한다」로 읽힌다** — 우리는 저장하는 것이 아니라 앱 설정을 읽을 뿐이라, 오해를 살 필요가
+ * 없는 쪽으로 옮겼다. 로케일을 못 읽는 판을 위해 옛 경로를 대비책으로 남긴다.
  */
 function currentLang() {
-  const lang = (window.localStorage.getItem('language') || '').toLowerCase();
-  return lang.startsWith('ko') ? 'ko' : 'en';
+  let lang = '';
+  try {
+    lang = String(moment.locale() || '');
+  } catch (e) {
+    lang = '';
+  }
+  if (!lang) {
+    try {
+      lang = window.localStorage.getItem('language') || '';
+    } catch (e) {
+      lang = '';
+    }
+  }
+  return lang.toLowerCase().startsWith('ko') ? 'ko' : 'en';
 }
 
 /** 문자열 하나. 인자가 있으면 문장 함수에 넘긴다. */
