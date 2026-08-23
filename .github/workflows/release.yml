@@ -1,0 +1,36 @@
+name: Release
+
+# 태그를 밀면 릴리스를 만들고 배포 파일 셋을 붙인다. 옵시디언 커뮤니티 목록은 릴리스 자산에서
+# main.js · manifest.json · styles.css 를 그대로 내려받으므로 이름이 정확해야 한다.
+# 빌드 단계가 없는 것은 이 플러그인이 번들러 없이 순수 JS 한 파일이기 때문이다.
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check manifest version matches the tag
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          MANIFEST=$(node -p "require('./manifest.json').version")
+          if [ "$TAG" != "$MANIFEST" ]; then
+            echo "tag $TAG != manifest.json $MANIFEST"
+            exit 1
+          fi
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF#refs/tags/}" \
+            --title "${GITHUB_REF#refs/tags/}" \
+            --generate-notes \
+            main.js manifest.json styles.css
