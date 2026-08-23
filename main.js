@@ -72,6 +72,7 @@ const STRINGS = {
     sweepSkipped: (n) => `${n} .html file(s) not made by this plugin were left alone.`,
     sweepFailed: (n, list) => `${n} failed: ${list}`,
 
+    saveDialogUnavailable: 'This device cannot show a save dialog, and there is no safe place to write. Use Share or the shared folder instead.',
     saveDialogTitle: 'Export to single HTML',
     filterHtml: 'HTML files',
     filterAll: 'All files',
@@ -145,6 +146,7 @@ const STRINGS = {
     sweepSkipped: (n) => `내보낸 것이 아닌 .html ${n}개는 그대로 뒀습니다.`,
     sweepFailed: (n, list) => `실패 ${n}개: ${list}`,
 
+    saveDialogUnavailable: '이 기기에서는 저장 위치를 물을 수 없고, 안전하게 쓸 자리도 없습니다. 공유나 공용 폴더를 쓰세요.',
     saveDialogTitle: 'HTML로 내보내기',
     filterHtml: 'HTML 파일',
     filterAll: '모든 파일',
@@ -615,9 +617,13 @@ class SingleHtmlExportPlugin extends Plugin {
 
   /** 데스크톱 저장 — 위치를 묻고, 저장한 뒤에야 「폴더에서 보기」가 뜻을 갖는다 */
   async actionSaveWithDialog({ file, fullHtml }) {
-    const savePath = await this.promptSavePath(`${file.basename}.html`);
-    if (!savePath) return null;
+    const asked = await this.promptSavePath(`${file.basename}.html`);
+    // 「사용자가 닫았다」와 「물어볼 수단이 없다」를 구별한다. 둘을 null 하나로 합쳐 두면
+    // 다이얼로그를 못 띄운 환경에서 **사용자가 취소한 것으로 보고**하게 된다(0.9.1 까지 그랬다).
+    if (asked.status === 'cancelled') return null;
+    if (asked.status === 'unavailable') return { error: t('saveDialogUnavailable') };
 
+    const savePath = asked.path;
     const fs = window.require('fs');
     await fs.promises.writeFile(savePath, fullHtml, 'utf8');
     return {
@@ -913,6 +919,8 @@ class SingleHtmlExportPlugin extends Plugin {
           if (svgHtml) {
             const wrapper = document.createElement('div');
             wrapper.className = 'mermaid-rendered';
+            // mermaid 가 돌려준 자기 SVG 문자열이다. 사용자 입력이 아니고, 이 노드는
+            // 화면에 붙지 않는 임시 컨테이너 안에서 **문자열로 직렬화되기 위해서만** 산다.
             wrapper.innerHTML = svgHtml;
             block.replaceWith(wrapper);
           }
@@ -924,7 +932,11 @@ class SingleHtmlExportPlugin extends Plugin {
   }
 
   /**
-   * 저장 경로 선택 다이얼로그 (Electron dialog 연동)
+   * 저장 경로 선택 다이얼로그 (Electron dialog 연동).
+   *
+   * 세 결과를 **구별해서** 돌려준다 — `ok`(경로 있음) · `cancelled`(사용자가 닫음) ·
+   * `unavailable`(물어볼 수단이 없음). 뒤의 둘을 하나로 합치면 호출부가 「취소했습니다」로
+   * 뭉쳐 보고하게 되고, 사용자는 자기가 누른 적 없는 취소를 통보받는다.
    */
   async promptSavePath(defaultFileName) {
     try {
@@ -940,23 +952,20 @@ class SingleHtmlExportPlugin extends Plugin {
               { name: t('filterAll'), extensions: ['*'] }
             ]
           });
-          if (result.canceled || !result.filePath) return null;
-          return result.filePath;
+          if (result.canceled || !result.filePath) return { status: 'cancelled' };
+          return { status: 'ok', path: result.filePath };
         }
       }
     } catch (e) {
       console.warn('[SingleHtmlExport] Electron dialog error:', e);
     }
 
-    // 대비책: 저장 다이얼로그를 못 띄웠으니 볼트 루트에 떨군다.
-    // getFullPath 가 없으면 상대경로가 되는데, 그때 fs 가 쓰는 기준 디렉터리는 옵시디언의
-    // 작업 디렉터리라 어디에 생길지 알 수 없다 — 그런 저장은 하지 않고 실패로 올린다.
+    // 대비책: 다이얼로그를 못 띄웠으니 볼트 루트 경로를 쓴다. `getFullPath` 가 없으면
+    // 상대경로가 되는데, 그때 fs 가 쓰는 기준 디렉터리는 옵시디언의 작업 디렉터리라
+    // 어디에 생길지 알 수 없다 — 그런 저장은 하지 않고 「수단 없음」으로 올린다.
     const adapter = this.app.vault.adapter;
-    if (typeof adapter.getFullPath !== 'function') return null;
-
-    // 결과를 여기서 알리지 않는다 — 보고 창구는 결과 팝업 하나다. 알림까지 같이 띄우면
-    // 같은 사실이 두 곳에서, 서로 다른 문장으로 전해진다.
-    return adapter.getFullPath(defaultFileName);
+    if (typeof adapter.getFullPath !== 'function') return { status: 'unavailable' };
+    return { status: 'ok', path: adapter.getFullPath(defaultFileName) };
   }
 
   /**
@@ -979,7 +988,7 @@ class SingleHtmlExportPlugin extends Plugin {
           img.removeAttribute('srcset');
         } else if (!/^https?:\/\//.test(src)) {
           // 볼트 안 이미지인데 못 찾았다 = 내보낸 파일에서 깨진다. 조용히 넘기지 않는다.
-          console.warn('[SingleHtmlExport] 이미지 원본을 찾지 못해 인라인화하지 못했다:', src);
+          console.warn('[SingleHtmlExport] could not resolve a vault image, left as-is:', src);
         }
       } catch (err) {
         console.warn(`[SingleHtmlExport] Failed to embed image (${src}):`, err);
@@ -1062,7 +1071,9 @@ class SingleHtmlExportPlugin extends Plugin {
       gif: 'image/gif',
       svg: 'image/svg+xml',
       webp: 'image/webp',
-      bmp: 'image/bmp'
+      bmp: 'image/bmp',
+      avif: 'image/avif',
+      ico: 'image/x-icon'
     };
     return map[ext?.toLowerCase()] || 'image/png';
   }
@@ -1089,8 +1100,10 @@ class SingleHtmlExportPlugin extends Plugin {
       : frontmatter.topic
       ? [frontmatter.topic]
       : [];
-    topics.forEach((t) => {
-      chips += `<span class="jelly-chip jelly-chip-topic">#${this.escapeHtml(String(t))}</span>`;
+    // 인자 이름을 `t` 로 두지 않는다 — 문자열 함수 `t()` 를 가려서, 이 안에서 번역이
+    // 필요해지는 날 조용히 «주제 문자열을 호출»하게 된다.
+    topics.forEach((topic) => {
+      chips += `<span class="jelly-chip jelly-chip-topic">#${this.escapeHtml(String(topic))}</span>`;
     });
 
     const tags = Array.isArray(frontmatter.tags) ? frontmatter.tags : [];
@@ -1109,7 +1122,9 @@ class SingleHtmlExportPlugin extends Plugin {
    * Standalone HTML 전체 문서 조립
    */
   generateFullHtmlDoc(title, bodyContent, frontmatter = null) {
-    const now = new Date().toLocaleString('ko-KR');
+    // 시각 표기도 문서 언어를 따른다 — 본문이 영어인데 날짜만 「2026. 8. 23. 오전 11:12:36」로
+    // 나오면 그 자리에서 만든 사람의 언어가 새어 나온다.
+    const now = new Date().toLocaleString(currentLang() === 'ko' ? 'ko-KR' : 'en-US');
     const metaChipsHtml = this.buildMetaChipsHtml(frontmatter);
     // 만든 판을 산출물에 박아 둔다. 이게 없으면 «지금 보는 이 파일이 어느 빌드인가»를
     // 알 길이 없어, 고친 뒤에도 옛 산출물을 보고 판정하게 된다(실제로 두 번 그랬다).
@@ -1989,7 +2004,7 @@ ${this.getClientScripts()}
             })
           ]);
           if (outcome === 'done') return true;
-          console.warn('clipboard.writeText 가 ' + CLIPBOARD_TIMEOUT_MS + 'ms 안에 끝나지 않았다');
+          console.warn('clipboard.writeText did not settle within ' + CLIPBOARD_TIMEOUT_MS + 'ms');
         } catch (e) {
           console.warn('clipboard.writeText failed:', e);
         }
