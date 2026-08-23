@@ -58,7 +58,7 @@ Some viewers — the iOS Files preview, simple HTML viewer apps — don't run Ja
 
 ## Development
 
-The plugin is a single plain-JavaScript file — no build step. Clone the repo, edit `main.js`, and copy the three files into your vault's plugin folder (`scripts/install-to-vault.sh` does this).
+The plugin is a single plain-JavaScript file — no build step. Clone the repo, edit `main.js`, then copy `main.js`, `manifest.json`, and `styles.css` into `<vault>/.obsidian/plugins/single-html-export/` and reload the plugin.
 
 Two platform notes for contributors:
 

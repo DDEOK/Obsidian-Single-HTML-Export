@@ -58,7 +58,7 @@ iOS 파일 앱 미리보기나 단순 HTML 뷰어 앱은 JavaScript를 실행하
 
 ## 개발
 
-빌드 단계 없는 순수 JavaScript 파일 하나입니다. 저장소를 클론해 `main.js`를 고치고, 파일 셋을 볼트 플러그인 폴더로 복사하면 됩니다(`scripts/install-to-vault.sh`가 그 일을 합니다).
+빌드 단계 없는 순수 JavaScript 파일 하나입니다. 저장소를 클론해 `main.js`를 고친 뒤, `main.js`·`manifest.json`·`styles.css`를 `<볼트>/.obsidian/plugins/single-html-export/` 에 복사하고 플러그인을 다시 로드하면 됩니다.
 
 기여자를 위한 플랫폼 노트 둘:
 
