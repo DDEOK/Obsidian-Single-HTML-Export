@@ -312,9 +312,8 @@ class ExportPreviewModal extends Modal {
  * 브라우저의 file:// 접근까지 막아서 미리보기가 유일한 창구다. 그래서 JS 가 있어야 뜻이 있는
  * 컨트롤(테마 토글·코드 복사)은 기본 숨김이고 html.js 로만 드러낸다 — 죽은 버튼을 보이지 않는다.
  *
- * 설계 판단과 밟은 지뢰는 볼트 문서가 원본이다 — 「single-html-export 판단기록」,
- * 「Obsidian MarkdownRenderer 기반 오프라인 단일 HTML 내보내기 구현 패턴」.
- * 이 파일의 주석은 «왜 이 제약이 있나»만 담고 경위는 적지 않는다.
+ * 이 파일의 주석은 «왜 이 제약이 있나»만 담는다. 대부분은 실제로 한 번 밟은 자리이므로,
+ * 근거 없이 「정리」하면 그 결함이 그대로 돌아온다.
  */
 class SingleHtmlExportPlugin extends Plugin {
   async onload() {
@@ -574,7 +573,8 @@ class SingleHtmlExportPlugin extends Plugin {
       }
     } catch (e) {
       // 시트를 닫은 것과 실패한 것을 Web Share API 는 구분해 주지 않는다. 브리지로 한 번 더 본다.
-      console.log('[SingleHtmlExport] navigator.share:', e);
+      // 사용자가 그냥 닫은 것일 수 있어 경고로 올리지 않는다 — 콘솔은 기본적으로 오류만 보여야 한다.
+      console.debug('[SingleHtmlExport] navigator.share:', e);
     }
 
     const Share = this.capacitorPlugins()?.Share;
@@ -1937,8 +1937,6 @@ ${this.getClientScripts()}
       //   3. navigator.clipboard        — 매달릴 수 있어 마지막이고 타임아웃을 건다
       // 셋 다 실패하면 호출부가 본문을 «선택»해 주고 사용자가 직접 복사하게 한다 —
       // 「복사 실패」가 막다른 길이 되지 않아야 한다.
-      //
-      // 경위와 밟은 지뢰는 볼트 문서 「2026-08-21 소스 검사와 오프라인 독립성 회복」에 있다.
 
       const CLIPBOARD_TIMEOUT_MS = 3000;
 
