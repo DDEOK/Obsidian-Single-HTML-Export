@@ -1,7 +1,7 @@
 {
   "id": "single-html-export",
   "name": "Single HTML Export",
-  "version": "0.9.7",
+  "version": "0.9.8",
   "minAppVersion": "0.15.0",
   "description": "Export a note as one self-contained HTML file that works offline. Preview it, then share or save.",
   "author": "DDEOK",

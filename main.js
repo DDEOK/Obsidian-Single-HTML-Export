@@ -453,9 +453,10 @@ class SingleHtmlExportPlugin extends Plugin {
       // 4. 본문 최상단 H1 제목 추출 및 중복 제거
       const documentTitle = this.extractAndStripTitle(container, file.basename);
 
-      // 5. 이미지 Base64 Data URI 변환 및 링크 정돈
+      // 5. 이미지 Base64 Data URI 변환 · 링크 정돈 · 넓은 표 감싸기
       await this.processImages(container, file.path);
       this.processLinks(container);
+      this.wrapTables(container);
 
       // 6. 메타데이터 (프론트매터) 파싱
       const fileCache = this.app.metadataCache.getFileCache(file);
@@ -1033,6 +1034,38 @@ class SingleHtmlExportPlugin extends Plugin {
         a.classList.add('obsidian-internal-link');
         a.removeAttribute('href');
       }
+    }
+  }
+
+  /**
+   * 표를 스크롤 상자로 감싼다 — 열이 많은 표가 **페이지 전체를 가로로 밀지 않게.**
+   *
+   * CSS 만으로는 못 한다. 표 자신에게 `overflow` 를 걸려면 `display: block` 이어야 하는데
+   * 그러면 셀 정렬이 표가 아니게 되고, 테두리·둥근 모서리도 스크롤과 함께 흘러가 상자가
+   * 깨진다. 감싸는 요소가 하나 있어야 **상자는 제자리, 내용만 스크롤**이 된다.
+   *
+   * 옵시디언 판에 따라 이미 감싸 주기도 해서(`.table-wrapper` 등), 감싼 것이 있으면 그 자리에
+   * 클래스만 얹는다 — 두 겹으로 감싸면 안쪽 상자에 테두리가 두 번 그려진다.
+   */
+  wrapTables(container) {
+    for (const table of Array.from(container.querySelectorAll('table'))) {
+      const parent = table.parentElement;
+      if (!parent) continue;
+
+      if (parent.classList.contains('jelly-table-scroll')) continue;
+
+      // 옵시디언이 이미 만든 **표 전용** 래퍼일 때만 재활용한다. 「자식이 표 하나뿐인 div」로
+      // 판정하면 안 된다 — 표만 든 콜아웃 본문이 그 조건에 걸려, 콜아웃 안에 표 테두리가
+      // 한 겹 더 그려진다. 이름으로 확인되는 것만 재활용하고 나머지는 새로 감싼다.
+      if (parent.classList.contains('table-wrapper') || parent.classList.contains('markdown-table-wrapper')) {
+        parent.classList.add('jelly-table-scroll');
+        continue;
+      }
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'jelly-table-scroll';
+      table.replaceWith(wrapper);
+      wrapper.appendChild(table);
     }
   }
 
@@ -1667,18 +1700,29 @@ ${this.getClientScripts()}
     [data-theme="dark"] .token.regex, [data-theme="dark"] .token.important, [data-theme="dark"] .token.variable { color: #fb923c; }
     }
 
-    /* Jelly 테이블 스타일 */
-    .markdown-body table {
-      width: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      margin: 1.5rem auto;
-      font-size: 0.88rem;
+    /* Jelly 테이블 — **상자와 표를 나눈다.**
+       열이 많은 표는 내용이 요구하는 만큼 넓어지는데, 그것을 페이지가 감당하면 본문 전체가
+       가로로 밀려 글줄까지 잘려 나간다. 그래서 스크롤은 표를 감싼 상자가 맡고 테두리·모서리·
+       그림자도 그 상자가 갖는다 — 표에 걸면 스크롤할 때 테두리가 같이 흘러가 상자가 깨진다.
+       mermaid 도 같은 구조다(.mermaid-rendered). */
+    .markdown-body .jelly-table-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      margin: 1.5rem 0;
       border-radius: var(--jelly-radius-md);
-      overflow: hidden;
       border: 1px solid var(--jelly-border-default);
       background: var(--jelly-bg-card);
       box-shadow: var(--jelly-shadow-sm);
+    }
+
+    .markdown-body table {
+      /* 좁은 표는 지금까지처럼 폭을 채우고, 넓은 표는 필요한 만큼 넘어간다(상자가 스크롤한다). */
+      min-width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin: 0;
+      font-size: 0.88rem;
+      background: var(--jelly-bg-card);
     }
 
     .markdown-body th {
@@ -1889,6 +1933,11 @@ ${this.getClientScripts()}
       body { background: #fff !important; padding: 0; }
       .jelly-container { box-shadow: none; border: none; padding: 0; max-width: 100%; }
       .jelly-theme-toggle, .copy-code-button { display: none !important; }
+      /* 종이는 스크롤이 없다 — 스크롤 상자를 그대로 두면 넘치는 열이 **잘린 채 인쇄된다.**
+         넘치게 두면 적어도 프린터의 축소·분할이 그것을 볼 수 있다. */
+      .markdown-body .jelly-table-scroll,
+      .markdown-body .mermaid-rendered,
+      .markdown-body pre { overflow: visible !important; }
     }
   </style>`;
   }
