@@ -1625,12 +1625,22 @@ ${this.getClientScripts()}
       border: 1px solid var(--jelly-code-border);
     }
 
+    /* 넘칠 수 있는 것 셋 — **페이지가 아니라 자기 상자가 감당한다.**
+       내보낸 문서는 어느 폭에서 열릴지 알 수 없는데, 넘치는 것을 페이지가 감당하면 본문 전체가
+       가로로 밀려 글줄까지 잘린다. 셋을 한자리에 묶어 두는 것은 **하나가 빠지면 그 하나에서
+       페이지가 밀리기 때문**이다(실제로 표만 빠져 있었다). 인쇄에서 푸는 예외도 같은 셋이다. */
+    .markdown-body pre,
+    .markdown-body .jelly-table-scroll,
+    .markdown-body .mermaid-rendered {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
     .markdown-body pre {
       position: relative;
       background-color: var(--jelly-code-bg);
       padding: 1.2rem 1.3rem;
       border-radius: var(--jelly-radius-md);
-      overflow-x: auto;
       margin: 1.4rem 0;
       border: 1px solid var(--jelly-code-border);
       box-shadow: var(--jelly-shadow-sm);
@@ -1706,8 +1716,6 @@ ${this.getClientScripts()}
        그림자도 그 상자가 갖는다 — 표에 걸면 스크롤할 때 테두리가 같이 흘러가 상자가 깨진다.
        mermaid 도 같은 구조다(.mermaid-rendered). */
     .markdown-body .jelly-table-scroll {
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
       margin: 1.5rem 0;
       border-radius: var(--jelly-radius-md);
       border: 1px solid var(--jelly-border-default);
@@ -1897,7 +1905,6 @@ ${this.getClientScripts()}
       padding: 1.6rem;
       border-radius: var(--jelly-radius-md);
       border: 1px solid var(--jelly-border-default);
-      overflow-x: auto;
       box-shadow: var(--jelly-shadow-sm);
     }
 
