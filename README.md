@@ -17,6 +17,7 @@ Works on **desktop and mobile**, including a native share sheet on iOS.
 - **Light / dark theme toggle** built into the exported page.
 - **One-click code copy** buttons on every code block.
 - **Obsidian syntax support** — callouts, wikilinks, task lists, highlights, tables, and frontmatter (rendered as a metadata chip bar).
+- **Your CSS snippets come along — but only the ones that apply.** If a note's look comes from a snippet (a card layout, a badge, a styled table), that CSS is bundled too. A snippet is included only when its selectors actually match the rendered note, so notes that use none stay exactly as small as before. Put `html-export-css: false` in a note's frontmatter to opt out, or `html-export-css: [my-snippet]` to force one in.
 - **Print-friendly** — printing an exported page always uses the light palette.
 - **Bilingual UI** — follows your Obsidian language setting (English / Korean).
 
@@ -61,6 +62,7 @@ The community directory scan flags the capabilities below. Here is what each one
 | **Filesystem outside the vault** | Only on desktop, and only after you pick a location in the save dialog — the file you asked for is written with Node's `fs`. Obsidian has no API for writing outside the vault. On Android the same role is played by the Capacitor `Filesystem` bridge, writing to `Download/Obsidian HTML/`. |
 | **Clipboard** | Write only, never read. The saved path is copied so you can paste it into a file manager, and the diagnostics command copies its report. |
 | **Local storage** | The plugin stores nothing. It reads the app's own language setting as a fallback when the locale isn't otherwise available. The exported page uses `localStorage` for its own theme toggle, but that runs in the exported file — not inside Obsidian. |
+| **Reading your CSS snippets** | Read only, at export time, from `<vault>/.obsidian/snippets/`. Only snippets you have enabled are considered, and only the ones whose selectors match the note being exported are copied into that file. `@import` rules and non-`data:` `url()` references are stripped so the result stays self-contained. Nothing is written back, and no other part of your config is read. |
 
 Nothing is sent anywhere: the plugin makes no network requests, and an exported file has no external references.
 

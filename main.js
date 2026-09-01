@@ -35,6 +35,9 @@ const STRINGS = {
     cmdSweep: 'Clean up exported HTML in the vault',
     converting: (name) => `Rendering '${name}' to HTML…`,
     exportFailed: (msg) => `HTML export failed: ${msg}`,
+    snippetsBundled: (list) => `Bundled CSS snippets that this note actually uses: ${list}`,
+    snippetExternalDropped: (list) =>
+      `Dropped rules with external references from ${list} — the exported file has to stand alone.`,
 
     noTargets: 'This environment has no way to export a file. Use the preview only.',
     processing: 'Working…',
@@ -109,6 +112,9 @@ const STRINGS = {
     cmdSweep: '볼트에 남은 내보낸 HTML 정리',
     converting: (name) => `'${name}' HTML 변환 중…`,
     exportFailed: (msg) => `HTML 내보내기 실패: ${msg}`,
+    snippetsBundled: (list) => `이 문서가 실제로 쓰는 CSS 스니펫을 함께 실었습니다: ${list}`,
+    snippetExternalDropped: (list) =>
+      `${list} 에서 외부 참조가 든 규칙을 걷어냈습니다 — 내보낸 파일은 혼자 서야 합니다.`,
 
     noTargets: '이 환경에는 파일을 내보낼 수단이 없습니다. 미리보기로만 확인하세요.',
     processing: '처리 중…',
@@ -462,10 +468,15 @@ class SingleHtmlExportPlugin extends Plugin {
       const fileCache = this.app.metadataCache.getFileCache(file);
       const frontmatter = fileCache?.frontmatter || null;
 
-      // 7. 전체 Standalone HTML 문서 조합
-      const fullHtml = this.generateFullHtmlDoc(documentTitle, container.innerHTML, frontmatter);
+      // 7. 이 문서에 실제로 걸리는 볼트 CSS 스니펫 수집
+      //    컨테이너가 살아 있는 지금만 «선택자가 실제로 걸리나»를 물을 수 있다(아래 finally
+      //    에서 떼어낸다). innerHTML 문자열로는 클래스와 값 문자열을 구분하지 못한다.
+      const snippets = await this.collectSnippetCss(container, frontmatter);
 
-      // 8. 결과를 보여주고, 무엇을 할지는 그 화면에서 고른다(플랫폼별 분기는 팝업 안에서
+      // 8. 전체 Standalone HTML 문서 조합
+      const fullHtml = this.generateFullHtmlDoc(documentTitle, container.innerHTML, frontmatter, snippets.css);
+
+      // 9. 결과를 보여주고, 무엇을 할지는 그 화면에서 고른다(플랫폼별 분기는 팝업 안에서
       //    «할 수 있는가»를 물어 정한다 — 여기서 OS 로 갈라 두면 또 목록이 된다).
       new ExportPreviewModal(this, { file: file, title: documentTitle, fullHtml: fullHtml }).open();
     } catch (err) {
@@ -1164,13 +1175,353 @@ class SingleHtmlExportPlugin extends Plugin {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
+  // 볼트 CSS 스니펫 — 「이 문서에 실제로 걸리는 것」만 싣는다
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * 이 문서에 실제로 적용되는 스니펫 CSS 를 모아 하나의 문자열로 돌려준다.
+   *
+   * 켜 둔 스니펫을 전부 싣지 않는 이유: 대부분의 스니펫은 **옵시디언 화면**을 손보는 것이라
+   * (파일 탐색기·탭·상태바) 내보낸 문서에는 걸릴 자리조차 없다. 다 실으면 산출물만 수십 KB
+   * 커지고, 그중 몇 줄이 본문 요소에 우연히 걸려 화면에서 보던 것과 다르게 나온다.
+   *
+   * 그래서 판정은 **선택자 대 실제 DOM** 으로 한다 — 스니펫이 지목하는 클래스·id 가 렌더된
+   * 본문에 하나라도 있으면 그 스니펫을 싣고, 없으면 건너뛴다. 문서에 아무 표시도 안 해도
+   * 「카드가 있는 문서」에서만 카드 CSS 가 따라오고 평소에는 아무것도 붙지 않는다.
+   *
+   * 요소 이름만 건드리는 스니펫(p·h3 같은 것)은 **의도적으로 못 걸리게 두었다.** 그건 어느
+   * 문서에나 걸려서 판정이 「항상 참」이 되고, 그 순간 이 기능은 「전부 싣기」와 같아진다.
+   *
+   * 자동 판정을 못 믿을 때를 위한 손잡이는 프론트매터 하나뿐이다(설정 화면을 만들지 않았다):
+   *   html-export-css: false          → 이 문서는 스니펫을 싣지 않는다
+   *   html-export-css: [hero-siege-card]  → 판정을 건너뛰고 그 스니펫을 반드시 싣는다
+   *
+   * @param {HTMLElement} container 렌더가 끝난 임시 컨테이너(= 내보낼 본문 그 자체)
+   * @returns {Promise<{css: string, names: string[]}>}
+   */
+  async collectSnippetCss(container, frontmatter) {
+    const empty = { css: '', names: [] };
+    const wanted = frontmatter ? frontmatter['html-export-css'] : undefined;
+    if (wanted === false || wanted === 'false' || wanted === 'none' || wanted === 'off') return empty;
+
+    const asName = (value) => String(value).trim().replace(/\.css$/i, '');
+    let forced = null;
+    if (Array.isArray(wanted)) forced = wanted.map(asName).filter(Boolean);
+    else if (typeof wanted === 'string' && wanted !== 'auto' && wanted !== 'true') forced = [asName(wanted)];
+
+    const dir = `${this.app.vault.configDir}/snippets`;
+    let candidates = forced;
+    if (!candidates) {
+      // 꺼 둔 스니펫은 화면에도 안 걸리므로 산출물에도 없어야 한다. 그 목록을 못 읽는 판을
+      // 위해 폴더를 훑는 길을 남기되, 거기서는 켜고 끈 상태를 모른 채 후보만 넓힌다 —
+      // 「본문에 걸리는가」가 한 번 더 거르므로 결과가 크게 벌어지지는 않는다.
+      const enabled = this.app.customCss && this.app.customCss.enabledSnippets;
+      if (enabled && typeof enabled.forEach === 'function') {
+        candidates = Array.from(enabled).map(asName);
+      } else {
+        try {
+          const listing = await this.app.vault.adapter.list(dir);
+          candidates = (listing?.files || [])
+            .filter((path) => path.toLowerCase().endsWith('.css'))
+            .map((path) => asName(path.slice(path.lastIndexOf('/') + 1)));
+        } catch (err) {
+          candidates = [];
+        }
+      }
+    }
+    if (!candidates.length) return empty;
+
+    const present = this.collectPresentSelectorTokens(container);
+    const blocks = [];
+    const names = [];
+    const withExternal = [];
+    const imageSelectors = [];
+
+    for (const name of candidates) {
+      let raw = '';
+      try {
+        raw = await this.app.vault.adapter.read(`${dir}/${name}.css`);
+      } catch (err) {
+        // 목록에는 있는데 파일이 없는 경우(이름을 바꿨거나 지웠다). 내보내기를 세우지 않는다.
+        continue;
+      }
+      const clean = this.stripCssComments(raw);
+      if (!forced && !this.cssTargetsDocument(clean, present)) continue;
+
+      const { css, dropped } = this.makeCssSelfContained(clean);
+      if (!css.trim()) continue;
+      if (dropped) withExternal.push(`${name}.css`);
+      names.push(name);
+      imageSelectors.push(...this.collectImageSelectors(css));
+      blocks.push(`    /* ── ${name}.css ── */\n${css}`);
+    }
+
+    if (!blocks.length) return empty;
+
+    // 액자 벗기기는 스니펫 **앞에** 둔다 — 무게가 같으므로 뒤에 오는 스니펫이 이긴다.
+    const reset = this.buildImageResetCss(Array.from(new Set(imageSelectors)));
+    if (reset) blocks.unshift(reset);
+    if (withExternal.length) new Notice(t('snippetExternalDropped', withExternal.join(', ')), 8000);
+    new Notice(t('snippetsBundled', names.map((name) => `${name}.css`).join(', ')));
+
+    return { css: blocks.join('\n\n'), names: names };
+  }
+
+  /**
+   * 렌더된 본문에 **실제로 존재하는** 클래스·id 를 전부 모은다.
+   *
+   * 컨테이너 자신의 클래스는 세지 않는다 — 거기 붙은 `markdown-rendered` 는 내용이 아니라
+   * 렌더러가 요구한 발판이라, 그것까지 세면 그 클래스를 건드리는 스니펫이 전부 걸린다.
+   */
+  collectPresentSelectorTokens(container) {
+    const present = new Set();
+    container.querySelectorAll('*').forEach((el) => {
+      if (el.id) present.add(`#${el.id}`);
+      el.classList.forEach((cls) => present.add(`.${cls}`));
+    });
+    return present;
+  }
+
+  /** CSS 주석 제거. 이 뒤의 판정·정리는 전부 주석이 없는 것을 전제한다. */
+  stripCssComments(css) {
+    return String(css).replace(/\/\*[\s\S]*?\*\//g, '');
+  }
+
+  /** 이 스니펫에 이 문서로 걸리는 규칙이 하나라도 있나. 규칙 하나의 판정은 `selectorListMatches`. */
+  cssTargetsDocument(css, present) {
+    let hit = false;
+    this.forEachSelectorList(css, (selectorList) => {
+      if (this.selectorListMatches(selectorList, present)) {
+        hit = true;
+        return true;
+      }
+      return false;
+    });
+    return hit;
+  }
+
+  /**
+   * 규칙이 올 수 있는 자리의 선택자 목록만 골라 하나씩 넘긴다. 콜백이 true 를 주면 멈춘다.
+   *
+   * 선언부(중괄호 안)의 글자는 넘기지 않는다 — 색 이름이나 url 안의 점을 클래스로 읽으면
+   * 아무 스니펫이나 걸린다. 그래서 **중괄호 깊이**를 따라가며 맨 바깥과 @media 같은
+   * at-rule 안에서 모은 것만 선택자로 본다.
+   */
+  forEachSelectorList(css, fn) {
+    const stack = [];
+    let buffer = '';
+    for (const ch of css) {
+      if (ch === '{') {
+        const selector = buffer.trim();
+        buffer = '';
+        const isAtRule = selector.startsWith('@');
+        const inRuleArea = stack.length === 0 || stack[stack.length - 1];
+        stack.push(isAtRule);
+        if (inRuleArea && selector && !isAtRule && fn(selector) === true) return;
+        continue;
+      }
+      if (ch === '}') {
+        stack.pop();
+        buffer = '';
+        continue;
+      }
+      if (stack.length === 0 || stack[stack.length - 1]) buffer += ch;
+    }
+  }
+
+  /**
+   * 선택자 목록 하나(콤마로 갈린 것 포함)가 이 문서에 걸리나 — **판정 규칙의 원본.**
+   *
+   * 콤마로 갈린 것은 서로 다른 규칙이라 하나씩 따로 본다. 선택자 하나 안의 클래스·id 는
+   * **전부** 있어야 하고(AND), `:is()`·`:where()` 안만 하나만 맞으면 된다(OR).
+   */
+  selectorListMatches(selectorList, present) {
+    // 속성 선택자·따옴표 안·:not() 은 지운 뒤에 본다. [data-path$="/x.md"] 의 `.md` 가
+    // 클래스로 읽히는 것과, :not(.foo) 의 foo 를 «있어야 하는 것»으로 세는 것을 막는다.
+    const bare = selectorList
+      .replace(/\[[^\]]*\]/g, '')
+      .replace(/(['"])(?:\\.|(?!\1)[^\\])*\1/g, '')
+      .replace(/:not\([^)]*\)/g, '');
+
+    const tokensOf = (text) => {
+      const re = /([.#])(-?[_a-zA-Z][\w-]*)/g;
+      const found = [];
+      let m;
+      while ((m = re.exec(text)) !== null) found.push(m[1] + m[2]);
+      return found;
+    };
+
+    for (const selector of this.splitTopLevelCommas(bare)) {
+      // :is()/:where() 안은 「하나만 맞아도 되는」 목록이라 밖과 규칙이 반대다. 떼어내
+      // 따로 본다(중첩 괄호가 있으면 안 떼어지고 밖의 규칙을 그대로 받는다 — 더 깐깐한
+      // 쪽이라 실으면 안 될 것을 싣지는 않는다).
+      const anyOf = [];
+      const outer = selector.replace(/:(?:is|where|matches|any)\(([^()]*)\)/gi, (m, inner) => {
+        anyOf.push(tokensOf(inner));
+        return '';
+      });
+
+      const required = tokensOf(outer);
+      // 요소 이름만 쓰는 선택자(p·h3)는 근거로 세지 않는다 — 어느 문서에나 걸려서
+      // 판정이 「항상 참」이 된다.
+      if (!required.length && !anyOf.some((group) => group.length)) continue;
+
+      // 밖의 토큰은 **전부** 있어야 한다. 하나만 걸려도 통과시켰더니
+      // `.hs-card a.external-link` 한 줄 때문에 링크가 있는 아무 문서에나 도감 CSS 가
+      // 통째로 실렸다(실측).
+      if (!required.every((token) => present.has(token))) continue;
+      if (!anyOf.every((group) => !group.length || group.some((token) => present.has(token)))) continue;
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * 스니펫이 **직접 img 를 지목한** 선택자들.
+   *
+   * 이 파일은 본문의 모든 그림에 액자를 씌운다(테두리·그림자·둥근 모서리·가운데 블록 배치).
+   * 문서에 툭 놓인 스크린샷에는 그게 맞지만, **스니펫이 배치까지 짜 놓은 그림**(카드 안의
+   * 아이콘 같은 것)에 겹치면 옵시디언에서 보던 것과 달라진다 — 어두운 카드 안에 밝은
+   * 테두리가 둘린 채로 나갔다(실측 2026-09-01).
+   *
+   * 그래서 「스니펫이 img 를 건드렸다」를 **그 그림은 스니펫이 책임진다**는 신호로 읽고,
+   * 그 선택자에 한해 액자를 벗긴다. 스니펫 이름을 아는 것이 아니라 선택자만 보므로 어느
+   * 스니펫에나 같게 걸린다.
+   */
+  collectImageSelectors(css) {
+    const found = new Set();
+    this.forEachSelectorList(css, (selectorList) => {
+      for (const selector of this.splitTopLevelCommas(selectorList)) {
+        const trimmed = selector.trim().replace(/\s+/g, ' ');
+        if (!trimmed) continue;
+        // 스타일이 실제로 걸리는 것은 **마지막 조각**이다. `.hs-card img` 는 해당하고
+        // `img .cap` (그림 안의 무엇)은 해당하지 않는다.
+        const last = trimmed.split(/[\s>+~]+/).filter(Boolean).pop() || '';
+        if (/^img\b/i.test(last)) found.add(trimmed);
+      }
+      return false;
+    });
+    return Array.from(found);
+  }
+
+  /**
+   * 위에서 고른 선택자의 그림에서 이 파일의 기본 액자를 벗기는 규칙.
+   *
+   * 접두를 `:where(.markdown-body)` 로 감싸는 것이 요점이다 — 특정도에 0 을 보태므로
+   * 결과가 **스니펫 자신의 선택자와 같은 무게**가 되고, 이 블록이 스니펫보다 앞에 오니
+   * 스니펫이 테두리를 다시 지정하면 그쪽이 이긴다. 그냥 `.markdown-body` 로 두면 접두가
+   * 무게를 더해 **스니펫이 지정한 값까지 눌러 버린다.**
+   */
+  buildImageResetCss(selectors) {
+    if (!selectors.length) return '';
+    const list = selectors.map((selector) => `    :where(.markdown-body) ${selector}`).join(',\n');
+    return `    /* 스니펫이 배치까지 책임지는 그림 — 이 파일의 기본 액자를 벗긴다 */
+${list} {
+      border: 0;
+      box-shadow: none;
+      border-radius: 0;
+      margin: 0;
+      display: revert;
+    }`;
+  }
+
+  /** 콤마로 갈린 선택자 목록을 하나씩 나눈다. 괄호 안의 콤마는 `:is(.a, .b)` 처럼 한 덩이다. */
+  splitTopLevelCommas(text) {
+    const parts = [];
+    let depth = 0;
+    let buffer = '';
+    for (const ch of text) {
+      if (ch === '(') depth++;
+      else if (ch === ')') depth--;
+      else if (ch === ',' && depth === 0) {
+        parts.push(buffer);
+        buffer = '';
+        continue;
+      }
+      buffer += ch;
+    }
+    parts.push(buffer);
+    return parts;
+  }
+
+  /**
+   * 스니펫 CSS 를 산출물에 실어도 되는 형태로 만든다.
+   *
+   * 이 플러그인의 존재 이유가 「외부 참조 0」이라, 스니펫이 들고 온 참조도 예외가 아니다.
+   * 남겨 두면 인터넷 없는 곳에서 조용히 깨진 채로 뜬다 — 그럴 바에는 그 규칙이 없는 편이
+   * 「무엇이 빠졌나」가 눈에 보여서 낫다. data: URI 는 파일 안에 있으므로 그대로 둔다.
+   */
+  makeCssSelfContained(css) {
+    let dropped = false;
+    let out = String(css).replace(/@import[^;]*;/gi, () => {
+      dropped = true;
+      return '';
+    });
+    // 따옴표를 먼저 «선택적으로» 먹고 나서 data: 를 부정하면, 정규식이 따옴표를 안 먹은 쪽으로
+    // 물러나 data: URI 까지 외부 참조로 읽는다(실측). 부정 안에 따옴표를 넣어야 그 길이 막힌다.
+    out = out.replace(/[^;{}]*url\(\s*(?!['"]?data:)[^)]*\)[^;{}]*(;|(?=\}))/gi, () => {
+      dropped = true;
+      return '';
+    });
+    // 스니펫 안의 </style 이 산출물의 스타일 블록을 끊는 것을 막는다. 남의 파일을 그대로
+    // 문서에 심는 자리라, 문법이 아니라 **문서 구조**가 깨지는 쪽을 먼저 막아야 한다.
+    return { css: out.replace(/<\/(style)/gi, '<\\/$1'), dropped };
+  }
+
+  /**
+   * 옵시디언 테마 변수를 Jelly 토큰에 잇는 다리.
+   *
+   * 스니펫은 앱 안에서 도는 물건이라 --text-muted 같은 이름을 당연히 쓴다. 그 이름이 없는
+   * 곳에 그대로 실으면 색이 상속값으로 떨어져 「검은 글씨에 검은 배경」이 난다. 값을 새로
+   * 만들지 않고 **이름만 잇는다** — 그래야 테마 토글이 스니펫 부분까지 함께 돈다.
+   */
+  getObsidianVarBridge() {
+    return `    :root {
+      --background-primary: var(--jelly-bg-card);
+      --background-primary-alt: var(--jelly-bg-subtle);
+      --background-secondary: var(--jelly-bg-subtle);
+      --background-secondary-alt: var(--jelly-bg-muted);
+      --background-modifier-border: var(--jelly-border-default);
+      --background-modifier-border-hover: var(--jelly-border-subtle);
+      --background-modifier-hover: var(--jelly-bg-subtle);
+      --background-modifier-active-hover: var(--jelly-bg-muted);
+      --divider-color: var(--jelly-border-default);
+
+      --text-normal: var(--jelly-text-default);
+      --text-muted: var(--jelly-text-muted);
+      --text-faint: var(--jelly-text-subtle);
+      --text-accent: var(--jelly-accent-text);
+      --text-accent-hover: var(--jelly-accent-default);
+      --text-on-accent: var(--jelly-bg-card);
+      --text-highlight-bg: var(--jelly-mark-bg);
+      --text-selection: var(--jelly-accent-subtle);
+
+      --interactive-accent: var(--jelly-accent-default);
+      --interactive-accent-hover: var(--jelly-accent-text);
+      --interactive-normal: var(--jelly-bg-subtle);
+      --interactive-hover: var(--jelly-bg-muted);
+
+      --code-background: var(--jelly-code-bg);
+      --code-normal: var(--jelly-code-text);
+
+      --radius-s: var(--jelly-radius-xs);
+      --radius-m: var(--jelly-radius-sm);
+      --radius-l: var(--jelly-radius-md);
+
+      --font-text: ${BODY_FONT_STACK};
+      --font-interface: ${BODY_FONT_STACK};
+      --font-monospace: ui-monospace, SFMono-Regular, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    }`;
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
   // 산출물 조립 — 여기서 나온 문자열이 곧 내보낼 파일이다(외부 참조 0)
   // ───────────────────────────────────────────────────────────────────────────
 
   /**
    * Standalone HTML 전체 문서 조립
    */
-  generateFullHtmlDoc(title, bodyContent, frontmatter = null) {
+  generateFullHtmlDoc(title, bodyContent, frontmatter = null, snippetCss = '') {
     // 시각 표기도 문서 언어를 따른다 — 본문이 영어인데 날짜만 「2026. 8. 23. 오전 11:12:36」로
     // 나오면 그 자리에서 만든 사람의 언어가 새어 나온다.
     const now = new Date().toLocaleString(currentLang() === 'ko' ? 'ko-KR' : 'en-US');
@@ -1179,6 +1530,16 @@ class SingleHtmlExportPlugin extends Plugin {
     // 알 길이 없어, 고친 뒤에도 옛 산출물을 보고 판정하게 된다(실제로 두 번 그랬다).
     // 기기마다 플러그인 사본이 따로 사는 것도 이 표기로만 드러난다.
     const version = this.manifest?.version || 'unknown';
+
+    // 스니펫 CSS 는 **뒤에** 오는 별도 블록이다 — 앞에 두면 특정도가 같은 자리에서 이 파일의
+    // 기본 스타일이 이기고, 화면에서 보던 모습이 산출물에서만 사라진다.
+    const snippetStyleBlock = snippetCss
+      ? `\n  <style>\n${this.getObsidianVarBridge()}\n\n${snippetCss}\n  </style>`
+      : '';
+    // 스니펫을 실을 때만 옵시디언의 본문 컨테이너 클래스를 함께 붙인다. 읽기 모드를 겨냥해
+    // 쓴 규칙(.markdown-rendered:has(...) 같은 것)이 여기서도 걸리게 하려는 것이고,
+    // 실을 것이 없을 때는 붙이지 않는다 — 없어도 되는 이름을 산출물에 남기지 않는다.
+    const bodyClass = snippetCss ? 'markdown-body markdown-rendered' : 'markdown-body';
 
     return `<!DOCTYPE html>
 <html lang="${t('docLang')}" data-theme="light">
@@ -1195,7 +1556,7 @@ class SingleHtmlExportPlugin extends Plugin {
   <title>${this.escapeHtml(title)}</title>
   <style>
 ${this.getJellyStyles()}
-  </style>
+  </style>${snippetStyleBlock}
 </head>
 <body>
   <div class="jelly-container">
@@ -1210,7 +1571,7 @@ ${this.getJellyStyles()}
       </div>
       ${metaChipsHtml}
     </header>
-    <main class="markdown-body">
+    <main class="${bodyClass}">
       ${bodyContent}
     </main>
   </div>
@@ -1945,8 +2306,7 @@ ${this.getClientScripts()}
       .markdown-body .jelly-table-scroll,
       .markdown-body .mermaid-rendered,
       .markdown-body pre { overflow: visible !important; }
-    }
-  </style>`;
+    }`;
   }
 
   /**
