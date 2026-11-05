@@ -920,6 +920,13 @@ class SingleHtmlExportPlugin extends Plugin {
    * 미변환 Mermaid 블록 직접 SVG 변환 처리
    */
   async processMermaidDiagrams(container) {
+    // Obsidian 1.15 부터 Pele 렌더러가 그린 다이어그램에는 확대·축소 버튼(.pele-zoom)이 붙고,
+    // svg 에는 인라인 max-width:100% 가 들어가 넓은 그림이 본문 폭에 맞춰 줄어든다.
+    // 정적 파일에서 그 버튼은 동작하지 않고 그림 오른쪽 끝을 가리므로 지운다.
+    // 인라인 폭 제한도 지워서, 아래 CSS 대로 원래 크기로 두고 넘치면 블록 안에서 스크롤하게 한다.
+    container.querySelectorAll('.mermaid > .pele-zoom').forEach((el) => el.remove());
+    container.querySelectorAll('.mermaid > svg.pele').forEach((svg) => svg.style.removeProperty('max-width'));
+
     // 세 셀렉터는 서로 겹친다 — code.language-mermaid 는 pre.language-mermaid 안에 있고
     // 그 pre 는 다시 .block-language-mermaid 안에 있다. 바깥 것을 replaceWith 로 갈아치우면
     // 안쪽 것들은 container 에서 떨어져 나가는데, 배열에는 그대로 남아 있어서 같은 다이어그램을
@@ -1992,6 +1999,7 @@ ${this.getClientScripts()}
        페이지가 밀리기 때문**이다(실제로 표만 빠져 있었다). 인쇄에서 푸는 예외도 같은 셋이다. */
     .markdown-body pre,
     .markdown-body .jelly-table-scroll,
+    .markdown-body .mermaid,
     .markdown-body .mermaid-rendered {
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
@@ -2260,7 +2268,9 @@ ${this.getClientScripts()}
     .markdown-body .block-language-mermaid,
     .markdown-body .mermaid-rendered {
       display: flex;
-      justify-content: center;
+      /* safe: 그림이 상자보다 넓으면 가운데 정렬을 버리고 왼쪽부터 놓는다.
+         그냥 center 면 넘친 왼쪽이 스크롤로도 닿지 않는 자리로 잘려 나간다. */
+      justify-content: safe center;
       margin: 1.6rem 0;
       background-color: var(--jelly-bg-subtle);
       padding: 1.6rem;
@@ -2272,7 +2282,10 @@ ${this.getClientScripts()}
     .markdown-body .mermaid svg,
     .markdown-body .block-language-mermaid svg,
     .markdown-body .mermaid-rendered svg {
-      max-width: 100%;
+      /* 줄이지 않는다. 넓은 그림을 상자 폭에 맞춰 줄이면 글씨가 읽히지 않으므로
+         svg 의 width 속성(원래 크기)대로 두고, 넘치면 위 스크롤 상자가 맡는다. */
+      max-width: none;
+      flex-shrink: 0;
       height: auto;
       display: block;
     }
@@ -2304,6 +2317,7 @@ ${this.getClientScripts()}
       /* 종이는 스크롤이 없다 — 스크롤 상자를 그대로 두면 넘치는 열이 **잘린 채 인쇄된다.**
          넘치게 두면 적어도 프린터의 축소·분할이 그것을 볼 수 있다. */
       .markdown-body .jelly-table-scroll,
+      .markdown-body .mermaid,
       .markdown-body .mermaid-rendered,
       .markdown-body pre { overflow: visible !important; }
     }`;
