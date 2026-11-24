@@ -7,6 +7,10 @@ const ICON_MOON = '<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17
 const ICON_SUN = '<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>';
 const ICON_COPY = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
 
+const ICON_OUTLINE = '<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6h12M9 12h12M9 18h12"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>';
+const ICON_CHEVRON = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>';
+const ICON_EXPAND = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>';
+
 // 모바일 공유용 임시 사본을 두는 앱 캐시 안의 폴더. 폴더로 묶어야 다음 실행에서 통째로 치울 수 있다.
 const EXPORT_CACHE_DIR = 'single-html-export';
 
@@ -95,6 +99,17 @@ const STRINGS = {
     docLang: 'en',
     docExportedAt: 'Exported',
     docThemeToggle: 'Toggle theme',
+    docPageControls: 'Page controls',
+    docOpenMermaid: 'Open diagram viewer',
+    docCloseMermaid: 'Close diagram viewer',
+    docMermaidDialog: 'Diagram viewer',
+    docMermaidHelp: 'Drag to pan, scroll or pinch to zoom, and double-click or double-tap to reset the view.',
+    docOutline: 'Outline',
+    docExpandAll: 'Expand all sections',
+    docCollapseAll: 'Collapse all sections',
+    docCloseOutline: 'Close outline',
+    docExpandSection: 'Expand section',
+    docCollapseSection: 'Collapse section',
     docToDark: 'Switch to dark mode',
     docToLight: 'Switch to light mode',
     docInternalLink: (name) => `Obsidian internal link: ${name}`,
@@ -172,6 +187,17 @@ const STRINGS = {
     docLang: 'ko',
     docExportedAt: '내보낸 시각',
     docThemeToggle: '테마 전환',
+    docPageControls: '페이지 도구',
+    docOpenMermaid: '다이어그램 크게 보기',
+    docCloseMermaid: '다이어그램 뷰어 닫기',
+    docMermaidDialog: '다이어그램 뷰어',
+    docMermaidHelp: '드래그해 이동하고, 스크롤하거나 핀치해 확대·축소하세요. 더블클릭 또는 두 번 탭하면 처음 보기로 돌아갑니다.',
+    docOutline: '목차',
+    docExpandAll: '모든 항목 펼치기',
+    docCollapseAll: '모든 항목 접기',
+    docCloseOutline: '목차 닫기',
+    docExpandSection: '항목 펼치기',
+    docCollapseSection: '항목 접기',
     docToDark: '다크 모드로 전환',
     docToLight: '라이트 모드로 전환',
     docInternalLink: (name) => `옵시디언 내부 링크: ${name}`,
@@ -924,7 +950,10 @@ class SingleHtmlExportPlugin extends Plugin {
     // svg 에는 인라인 max-width:100% 가 들어가 넓은 그림이 본문 폭에 맞춰 줄어든다.
     // 정적 파일에서 그 버튼은 동작하지 않고 그림 오른쪽 끝을 가리므로 지운다.
     // 인라인 폭 제한도 지워서, 아래 CSS 대로 원래 크기로 두고 넘치면 블록 안에서 스크롤하게 한다.
-    container.querySelectorAll('.mermaid > .pele-zoom').forEach((el) => el.remove());
+    const removePeleZoomControls = () => {
+      container.querySelectorAll('.pele-zoom').forEach((el) => el.remove());
+    };
+    removePeleZoomControls();
     container.querySelectorAll('.mermaid > svg.pele').forEach((svg) => svg.style.removeProperty('max-width'));
 
     // 세 셀렉터는 서로 겹친다 — code.language-mermaid 는 pre.language-mermaid 안에 있고
@@ -964,6 +993,9 @@ class SingleHtmlExportPlugin extends Plugin {
         console.warn('[SingleHtmlExport] Mermaid direct render fallback error:', e);
       }
     }
+
+    // Obsidian 이 만든 블록을 보존한 경우와 직접 SVG 로 바꾼 경우 모두 마지막에 한 번 더 걷는다.
+    removePeleZoomControls();
   }
 
   /**
@@ -1570,7 +1602,6 @@ ${this.getJellyStyles()}
     <header class="doc-header">
       <div class="doc-header-top">
         <h1 class="doc-title">${this.escapeHtml(title)}</h1>
-        <button class="jelly-theme-toggle" id="theme-toggle" type="button" aria-label="${t('docThemeToggle')}" title="${t('docToDark')}">${ICON_MOON}</button>
       </div>
       <div class="doc-meta">
         <span>${t('docExportedAt')}: ${now}</span>
@@ -1582,6 +1613,25 @@ ${this.getJellyStyles()}
       ${bodyContent}
     </main>
   </div>
+
+  <div class="doc-floating-actions" role="group" aria-label="${t('docPageControls')}">
+    <button class="jelly-theme-toggle" id="theme-toggle" type="button" aria-label="${t('docThemeToggle')}" title="${t('docToDark')}">${ICON_MOON}</button>
+    <button class="jelly-theme-toggle outline-toggle" id="outline-toggle" type="button" aria-label="${t('docOutline')}" title="${t('docOutline')}" aria-controls="outline-sidebar" aria-expanded="false">${ICON_OUTLINE}</button>
+  </div>
+
+  <div class="outline-backdrop" id="outline-backdrop" aria-hidden="true"></div>
+  <aside class="outline-sidebar" id="outline-sidebar" role="dialog" aria-modal="true" aria-label="${t('docOutline')}" aria-hidden="true" inert>
+    <div class="outline-header">
+      <h2>${t('docOutline')}</h2>
+      <div class="outline-header-actions">
+        <button class="outline-expand-all" id="outline-expand-all" type="button" aria-label="${t('docExpandAll')}" title="${t('docExpandAll')}" disabled>${t('docExpandAll')}</button>
+        <button class="outline-close" id="outline-close" type="button" aria-label="${t('docCloseOutline')}" title="${t('docCloseOutline')}">×</button>
+      </div>
+    </div>
+    <nav class="outline-nav" aria-label="${t('docOutline')}">
+      <ol class="outline-list" id="outline-list"></ol>
+    </nav>
+  </aside>
 
   <script>
 ${this.getClientScripts()}
@@ -1696,7 +1746,7 @@ ${this.getClientScripts()}
 
     /* 메인 Jelly 카드 컨테이너 */
     .jelly-container {
-      max-width: 860px;
+      max-width: none;
       width: 100%;
       background: var(--jelly-bg-card);
       border: 1px solid var(--jelly-border-default);
@@ -1709,6 +1759,7 @@ ${this.getClientScripts()}
     @media (max-width: 640px) {
       body { padding: 14px 8px; }
       .jelly-container { padding: 20px 16px; border-radius: var(--jelly-radius-md); }
+      header.doc-header { padding-top: calc(env(safe-area-inset-top, 0px) + 28px); }
     }
 
     /* 문서 헤더 & 메타 */
@@ -1724,6 +1775,20 @@ ${this.getClientScripts()}
       align-items: flex-start;
       gap: 16px;
       margin-bottom: 0.5rem;
+    }
+
+    .doc-floating-actions {
+      position: fixed;
+      z-index: 900;
+      top: max(12px, calc(env(safe-area-inset-top, 0px) + 8px));
+      right: max(12px, calc(env(safe-area-inset-right, 0px) + 8px));
+      display: none;
+      gap: 8px;
+      padding: 4px;
+      background: var(--jelly-bg-card);
+      border: 1px solid var(--jelly-border-default);
+      border-radius: calc(var(--jelly-radius-md) + 3px);
+      box-shadow: var(--jelly-shadow-md);
     }
 
     h1.doc-title {
@@ -1808,6 +1873,111 @@ ${this.getClientScripts()}
     .jelly-theme-toggle:hover {
       background: var(--jelly-bg-muted);
       transform: scale(1.06);
+    }
+
+    .outline-toggle { display: none; }
+
+    .outline-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: rgba(15, 23, 42, 0.32);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.24s ease, visibility 0.24s ease;
+    }
+
+    .outline-sidebar {
+      position: fixed;
+      z-index: 1001;
+      top: 16px;
+      right: 16px;
+      bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      width: min(360px, calc(100vw - 24px));
+      padding: 18px;
+      color: var(--jelly-text-default);
+      background: var(--jelly-bg-card);
+      border: 1px solid var(--jelly-border-default);
+      border-radius: var(--jelly-radius-lg);
+      box-shadow: var(--jelly-shadow-card);
+      opacity: 0;
+      visibility: hidden;
+      transform: translateX(calc(100% + 24px));
+      transition: transform 0.28s cubic-bezier(0.2, 0.75, 0.25, 1), opacity 0.2s ease, visibility 0.28s ease;
+    }
+
+    .outline-sidebar.is-open { opacity: 1; visibility: visible; transform: translateX(0); }
+    .outline-backdrop.is-open { opacity: 1; visibility: visible; }
+
+    .outline-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--jelly-border-default);
+    }
+
+    .outline-header h2 { font-size: 1rem; line-height: 1.3; }
+    .outline-header-actions { display: flex; align-items: center; gap: 6px; }
+    .outline-expand-all, .outline-close, .outline-branch-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--jelly-text-default);
+      background: var(--jelly-bg-subtle);
+      border: 1px solid var(--jelly-border-default);
+      border-radius: var(--jelly-radius-sm);
+      cursor: pointer;
+      transition: background-color 0.18s ease, transform 0.18s ease;
+    }
+    .outline-expand-all { min-height: 32px; padding: 4px 9px; font: inherit; font-size: 0.76rem; }
+    .outline-close { width: 32px; height: 32px; font-size: 1.25rem; line-height: 1; }
+    .outline-expand-all:hover, .outline-close:hover, .outline-branch-toggle:hover { background: var(--jelly-bg-muted); }
+    .outline-expand-all:disabled { opacity: 0.55; cursor: default; }
+    .outline-nav { min-height: 0; flex: 1 1 auto; overflow: auto; padding-top: 10px; }
+    .outline-list, .outline-children { list-style: none; margin: 0; padding: 0; }
+    .outline-children { padding-left: 14px; }
+    .outline-item { display: flex; align-items: stretch; gap: 4px; min-width: 0; }
+    .outline-branch-toggle { width: 24px; min-width: 24px; height: 28px; margin-top: 1px; padding: 0; border: 0; background: transparent; }
+    .outline-branch-toggle svg { transition: transform 0.2s ease; }
+    .outline-branch.is-expanded > .outline-item .outline-branch-toggle svg { transform: rotate(90deg); }
+    .outline-branch-toggle:disabled { visibility: hidden; }
+    .outline-link {
+      display: block;
+      min-width: 0;
+      flex: 1 1 auto;
+      padding: 4px 7px;
+      color: var(--jelly-text-muted);
+      border-radius: 6px;
+      font-size: 0.84rem;
+      line-height: 1.45;
+      text-decoration: none;
+      overflow-wrap: anywhere;
+      transition: color 0.18s ease, background-color 0.18s ease;
+    }
+    .outline-link:hover, .outline-link:focus-visible { color: var(--jelly-accent-text); background: var(--jelly-accent-subtle); outline: none; }
+    .outline-children-wrap { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.22s ease; }
+    .outline-branch.is-expanded > .outline-children-wrap { grid-template-rows: 1fr; }
+    .outline-children-inner { min-height: 0; overflow: hidden; }
+    .outline-empty { padding: 12px 4px; color: var(--jelly-text-muted); font-size: 0.86rem; }
+
+    .markdown-body .outline-heading-highlight { animation: outline-heading-highlight 1.8s ease-out; scroll-margin-top: 1.5rem; }
+    @keyframes outline-heading-highlight {
+      0%, 45% { background-color: var(--jelly-accent-subtle); box-shadow: 0 0 0 6px var(--jelly-accent-subtle); }
+      100% { background-color: transparent; box-shadow: 0 0 0 0 transparent; }
+    }
+
+    @media (max-width: 640px) {
+      .outline-sidebar { top: 8px; right: 8px; bottom: 8px; padding: 14px; border-radius: var(--jelly-radius-md); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .outline-sidebar, .outline-backdrop, .outline-children-wrap, .outline-branch-toggle svg,
+      .outline-expand-all, .outline-close, .outline-link { transition-duration: 0.01ms !important; }
+      .markdown-body .outline-heading-highlight { animation: none; background: var(--jelly-accent-subtle); }
     }
 
     /* 본문 마크다운 타이포그래피 */
@@ -2025,6 +2195,9 @@ ${this.getClientScripts()}
 
     /* 코드 블록 복사 버튼 */
     html.js .jelly-theme-toggle { display: inline-flex; }
+    html.js .doc-floating-actions { display: flex; }
+    html.js .jelly-theme-toggle.outline-toggle { display: none; }
+    html.js.has-outline .jelly-theme-toggle.outline-toggle { display: inline-flex; }
     html.js .markdown-body .copy-code-button { display: inline-flex; }
 
     .markdown-body .copy-code-button {
@@ -2290,6 +2463,166 @@ ${this.getClientScripts()}
       display: block;
     }
 
+    .markdown-body .mermaid,
+    .markdown-body .block-language-mermaid,
+    .markdown-body .mermaid-rendered { position: relative; }
+
+    /* Viewer control belongs to a wrapper outside every horizontally scrolling Mermaid block. */
+    .markdown-body .mermaid-view-shell {
+      position: relative;
+      width: 100%;
+      min-width: 0;
+      margin: 1.6rem 0;
+    }
+    .markdown-body .mermaid-view-shell > .mermaid,
+    .markdown-body .mermaid-view-shell > .block-language-mermaid,
+    .markdown-body .mermaid-view-shell > .mermaid-rendered,
+    .markdown-body .mermaid-view-shell > pre.language-mermaid { margin: 0; }
+
+    .mermaid-view-button {
+      position: absolute;
+      z-index: 4;
+      top: 10px;
+      right: 10px;
+      display: none;
+      width: 34px;
+      height: 34px;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      color: var(--jelly-text-default);
+      background: var(--jelly-bg-card);
+      border: 1px solid var(--jelly-border-default);
+      border-radius: var(--jelly-radius-sm);
+      box-shadow: var(--jelly-shadow-sm);
+      cursor: pointer;
+      transition: background-color 0.18s ease, transform 0.18s ease;
+    }
+    .mermaid-view-button:hover { background: var(--jelly-bg-muted); transform: scale(1.06); }
+    html.js .mermaid-view-button { display: inline-flex; }
+
+    .markdown-body :is(.mermaid, .block-language-mermaid, .mermaid-rendered) .pele-zoom { display: none !important; }
+
+    :is(.markdown-body .mermaid, .markdown-body .block-language-mermaid, .markdown-body .mermaid-rendered, .diagram-viewer-stage) svg rect,
+    :is(.markdown-body .mermaid, .markdown-body .block-language-mermaid, .markdown-body .mermaid-rendered, .diagram-viewer-stage) svg polygon,
+    :is(.markdown-body .mermaid, .markdown-body .block-language-mermaid, .markdown-body .mermaid-rendered, .diagram-viewer-stage) svg circle,
+    :is(.markdown-body .mermaid, .markdown-body .block-language-mermaid, .markdown-body .mermaid-rendered, .diagram-viewer-stage) svg ellipse {
+      fill: var(--jelly-bg-card) !important;
+      stroke: var(--jelly-accent-border) !important;
+    }
+    :is(.markdown-body .mermaid, .markdown-body .block-language-mermaid, .markdown-body .mermaid-rendered, .diagram-viewer-stage) svg text,
+    :is(.markdown-body .mermaid, .markdown-body .block-language-mermaid, .markdown-body .mermaid-rendered, .diagram-viewer-stage) svg tspan {
+      fill: var(--jelly-text-default) !important;
+      font-family: inherit !important;
+    }
+    :is(.markdown-body .mermaid, .markdown-body .block-language-mermaid, .markdown-body .mermaid-rendered, .diagram-viewer-stage) svg { font-family: inherit !important; }
+    :is(.markdown-body .mermaid, .markdown-body .block-language-mermaid, .markdown-body .mermaid-rendered, .diagram-viewer-stage) svg foreignObject,
+    :is(.markdown-body .mermaid, .markdown-body .block-language-mermaid, .markdown-body .mermaid-rendered, .diagram-viewer-stage) svg foreignObject * {
+      color: var(--jelly-text-default) !important;
+      font-family: inherit !important;
+      background-color: transparent !important;
+    }
+    :is(.markdown-body .mermaid, .markdown-body .block-language-mermaid, .markdown-body .mermaid-rendered, .diagram-viewer-stage) svg .edgePath path,
+    :is(.markdown-body .mermaid, .markdown-body .block-language-mermaid, .markdown-body .mermaid-rendered, .diagram-viewer-stage) svg .flowchart-link,
+    :is(.markdown-body .mermaid, .markdown-body .block-language-mermaid, .markdown-body .mermaid-rendered, .diagram-viewer-stage) svg .messageLine0,
+    :is(.markdown-body .mermaid, .markdown-body .block-language-mermaid, .markdown-body .mermaid-rendered, .diagram-viewer-stage) svg .messageLine1,
+    :is(.markdown-body .mermaid, .markdown-body .block-language-mermaid, .markdown-body .mermaid-rendered, .diagram-viewer-stage) svg .actor-line,
+    :is(.markdown-body .mermaid, .markdown-body .block-language-mermaid, .markdown-body .mermaid-rendered, .diagram-viewer-stage) svg .relation {
+      stroke: var(--jelly-text-muted) !important;
+    }
+    :is(.markdown-body .mermaid, .markdown-body .block-language-mermaid, .markdown-body .mermaid-rendered, .diagram-viewer-stage) svg marker path {
+      fill: var(--jelly-text-muted) !important;
+      stroke: var(--jelly-text-muted) !important;
+    }
+
+    .diagram-viewer {
+      position: fixed;
+      z-index: 1200;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px))
+        max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+      background: rgba(15, 23, 42, 0.58);
+      opacity: 0;
+      visibility: hidden;
+      touch-action: none;
+      overscroll-behavior: contain;
+      transition: opacity 0.24s ease, visibility 0.24s ease;
+    }
+    .diagram-viewer.is-open { opacity: 1; visibility: visible; }
+    .diagram-viewer-panel {
+      display: flex;
+      flex-direction: column;
+      width: min(1280px, 100%);
+      height: min(900px, 100%);
+      min-height: 0;
+      overflow: hidden;
+      color: var(--jelly-text-default);
+      background: var(--jelly-bg-card);
+      border: 1px solid var(--jelly-border-default);
+      border-radius: var(--jelly-radius-lg);
+      box-shadow: var(--jelly-shadow-card);
+      transform: scale(0.97) translateY(12px);
+      transition: transform 0.24s cubic-bezier(0.2, 0.75, 0.25, 1);
+    }
+    .diagram-viewer.is-open .diagram-viewer-panel { transform: scale(1) translateY(0); }
+    .diagram-viewer-header {
+      display: flex;
+      min-height: 48px;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--jelly-border-default);
+    }
+    .diagram-viewer-close {
+      display: inline-flex;
+      width: 34px;
+      height: 34px;
+      align-items: center;
+      justify-content: center;
+      color: var(--jelly-text-default);
+      background: var(--jelly-bg-subtle);
+      border: 1px solid var(--jelly-border-default);
+      border-radius: var(--jelly-radius-sm);
+      font: inherit;
+      font-size: 1.3rem;
+      cursor: pointer;
+    }
+    .diagram-viewer-close:hover { background: var(--jelly-bg-muted); }
+    .diagram-viewer-viewport {
+      position: relative;
+      min-height: 0;
+      flex: 1 1 auto;
+      overflow: hidden;
+      background: var(--jelly-bg-subtle);
+      cursor: grab;
+      touch-action: none;
+      overscroll-behavior: contain;
+    }
+    .diagram-viewer-viewport.is-dragging { cursor: grabbing; }
+    .diagram-viewer-stage {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: max-content;
+      height: max-content;
+      transform-origin: 0 0;
+      transition: transform 0.14s ease-out;
+      will-change: transform;
+    }
+    .diagram-viewer-stage.is-interacting { transition: none; }
+    .diagram-viewer-stage svg { display: block; max-width: none !important; max-height: none !important; }
+
+    @media (max-width: 640px) {
+      .diagram-viewer { padding: 8px; }
+      .diagram-viewer-panel { border-radius: var(--jelly-radius-md); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .diagram-viewer, .diagram-viewer-panel, .mermaid-view-button { transition-duration: 0.01ms !important; }
+      .diagram-viewer-stage { transition-duration: 0.01ms !important; }
+    }
+
     /* 구분선 */
     .markdown-body hr {
       border: none;
@@ -2313,7 +2646,8 @@ ${this.getClientScripts()}
     @media print {
       body { background: #fff !important; padding: 0; }
       .jelly-container { box-shadow: none; border: none; padding: 0; max-width: 100%; }
-      .jelly-theme-toggle, .copy-code-button { display: none !important; }
+      .jelly-theme-toggle, .copy-code-button, .outline-sidebar, .outline-backdrop, .doc-floating-actions,
+      .mermaid-view-button, .diagram-viewer { display: none !important; }
       /* 종이는 스크롤이 없다 — 스크롤 상자를 그대로 두면 넘치는 열이 **잘린 채 인쇄된다.**
          넘치게 두면 적어도 프린터의 축소·분할이 그것을 볼 수 있다. */
       .markdown-body .jelly-table-scroll,
@@ -2373,6 +2707,507 @@ ${this.getClientScripts()}
           setTheme(current === 'dark' ? 'light' : 'dark');
         });
       }
+
+      // ── 1.5. 문서 개요 사이드바 ────────────────────────────────────────
+      const outlineToggle = document.getElementById('outline-toggle');
+      const outlineSidebar = document.getElementById('outline-sidebar');
+      const outlineBackdrop = document.getElementById('outline-backdrop');
+      const outlineList = document.getElementById('outline-list');
+      const expandAllButton = document.getElementById('outline-expand-all');
+      const closeOutlineButton = document.getElementById('outline-close');
+      const markdownBody = document.querySelector('.markdown-body');
+
+      if (outlineToggle && outlineSidebar && outlineBackdrop && outlineList && markdownBody) {
+        const headings = Array.from(markdownBody.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+        if (headings.length) {
+          root.classList.add('has-outline');
+
+          // 기존 고유 ID 는 보존한다. 빠진 ID 와 중복 ID 는 링크가 각각의 제목으로 가도록 고친다.
+          const occupiedIds = new Set(Array.from(document.querySelectorAll('[id]')).map(function(el) { return el.id; }));
+          const seenHeadingIds = new Set();
+          headings.forEach(function(heading, index) {
+            let id = heading.id;
+            if (!id || seenHeadingIds.has(id)) {
+              const base = id || 'single-html-heading-' + (index + 1);
+              id = base;
+              let suffix = 2;
+              while (occupiedIds.has(id)) {
+                id = base + '-' + suffix;
+                suffix += 1;
+              }
+              heading.id = id;
+            }
+            occupiedIds.add(id);
+            seenHeadingIds.add(id);
+          });
+
+          const roots = [];
+          const headingStack = [];
+          let headingHighlightTimeout = 0;
+          headings.forEach(function(heading) {
+            const item = { heading: heading, level: Number(heading.tagName.slice(1)), children: [] };
+            while (headingStack.length && headingStack[headingStack.length - 1].level >= item.level) headingStack.pop();
+            if (headingStack.length) headingStack[headingStack.length - 1].children.push(item);
+            else roots.push(item);
+            headingStack.push(item);
+          });
+
+          function renderOutlineItems(items, list) {
+            items.forEach(function(item) {
+              const li = document.createElement('li');
+              li.className = 'outline-branch';
+              const row = document.createElement('div');
+              row.className = 'outline-item';
+              const branchToggle = document.createElement('button');
+              branchToggle.className = 'outline-branch-toggle';
+              branchToggle.type = 'button';
+              branchToggle.innerHTML = '${ICON_CHEVRON}';
+              branchToggle.setAttribute('aria-label', '${t('docExpandSection')}');
+              branchToggle.setAttribute('aria-expanded', 'false');
+              branchToggle.disabled = item.children.length === 0;
+              row.appendChild(branchToggle);
+
+              const link = document.createElement('a');
+              link.className = 'outline-link';
+              link.href = '#' + item.heading.id;
+              link.textContent = item.heading.textContent.trim() || item.heading.id;
+              link.addEventListener('click', function(event) {
+                event.preventDefault();
+                const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                window.clearTimeout(headingHighlightTimeout);
+                item.heading.classList.remove('outline-heading-highlight');
+                void item.heading.offsetWidth;
+                item.heading.classList.add('outline-heading-highlight');
+                item.heading.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+                headingHighlightTimeout = window.setTimeout(function() { item.heading.classList.remove('outline-heading-highlight'); }, 1800);
+                if (window.history && window.history.replaceState) window.history.replaceState(null, '', '#' + item.heading.id);
+              });
+              row.appendChild(link);
+              li.appendChild(row);
+
+              if (item.children.length) {
+                const wrap = document.createElement('div');
+                wrap.className = 'outline-children-wrap';
+                const inner = document.createElement('div');
+                inner.className = 'outline-children-inner';
+                const childList = document.createElement('ol');
+                childList.className = 'outline-children';
+                childList.inert = true;
+                renderOutlineItems(item.children, childList);
+                inner.appendChild(childList);
+                wrap.appendChild(inner);
+                li.appendChild(wrap);
+                branchToggle.addEventListener('click', function() {
+                  const expanded = li.classList.toggle('is-expanded');
+                  branchToggle.setAttribute('aria-expanded', String(expanded));
+                  branchToggle.setAttribute('aria-label', expanded ? '${t('docCollapseSection')}' : '${t('docExpandSection')}');
+                  childList.inert = !expanded;
+                  updateExpandAllLabel();
+                });
+              }
+              list.appendChild(li);
+            });
+          }
+
+          renderOutlineItems(roots, outlineList);
+
+          const branchItems = function() { return Array.from(outlineList.querySelectorAll('.outline-branch')).filter(function(li) { return li.querySelector(':scope > .outline-children-wrap'); }); };
+          function updateExpandAllLabel() {
+            const branches = branchItems();
+            const allExpanded = branches.length > 0 && branches.every(function(li) { return li.classList.contains('is-expanded'); });
+            const label = allExpanded ? '${t('docCollapseAll')}' : '${t('docExpandAll')}';
+            expandAllButton.textContent = label;
+            expandAllButton.setAttribute('aria-label', label);
+            expandAllButton.title = label;
+            expandAllButton.disabled = branches.length === 0;
+          }
+
+          updateExpandAllLabel();
+          expandAllButton.addEventListener('click', function() {
+            const branches = branchItems();
+            const expand = !branches.length || !branches.every(function(li) { return li.classList.contains('is-expanded'); });
+            branches.forEach(function(li) {
+              const toggle = li.querySelector(':scope > .outline-item > .outline-branch-toggle');
+              const childList = li.querySelector(':scope > .outline-children-wrap .outline-children');
+              li.classList.toggle('is-expanded', expand);
+              toggle.setAttribute('aria-expanded', String(expand));
+              toggle.setAttribute('aria-label', expand ? '${t('docCollapseSection')}' : '${t('docExpandSection')}');
+              childList.inert = !expand;
+            });
+            updateExpandAllLabel();
+          });
+
+          function setOutlineOpen(open, returnFocus) {
+            outlineSidebar.classList.toggle('is-open', open);
+            outlineBackdrop.classList.toggle('is-open', open);
+            outlineSidebar.setAttribute('aria-hidden', String(!open));
+            outlineSidebar.inert = !open;
+            outlineToggle.setAttribute('aria-expanded', String(open));
+            if (open) closeOutlineButton.focus();
+            else if (returnFocus) outlineToggle.focus();
+          }
+
+          outlineToggle.addEventListener('click', function() {
+            setOutlineOpen(outlineToggle.getAttribute('aria-expanded') !== 'true', false);
+          });
+          closeOutlineButton.addEventListener('click', function() { setOutlineOpen(false, true); });
+          outlineBackdrop.addEventListener('click', function() { setOutlineOpen(false, true); });
+          document.addEventListener('keydown', function(event) {
+            if (outlineToggle.getAttribute('aria-expanded') !== 'true') return;
+            if (event.key === 'Escape') {
+              setOutlineOpen(false, true);
+              return;
+            }
+            if (event.key === 'Tab') {
+              const focusable = Array.from(outlineSidebar.querySelectorAll('button:not(:disabled), a[href]')).filter(function(el) { return !el.closest('[inert]'); });
+              if (!focusable.length) {
+                event.preventDefault();
+                closeOutlineButton.focus();
+                return;
+              }
+              const first = focusable[0];
+              const last = focusable[focusable.length - 1];
+              if (event.shiftKey && (document.activeElement === first || !outlineSidebar.contains(document.activeElement))) {
+                event.preventDefault();
+                last.focus();
+              } else if (!event.shiftKey && (document.activeElement === last || !outlineSidebar.contains(document.activeElement))) {
+                event.preventDefault();
+                first.focus();
+              }
+            }
+          });
+        }
+      }
+
+      // ── 1.7. 오프라인 Mermaid 확대 뷰어 ────────────────────────────────
+      const diagramCandidates = Array.from(document.querySelectorAll('.markdown-body .pele-zoom'));
+      diagramCandidates.forEach(function(control) { control.remove(); });
+
+      const diagramViewer = document.createElement('div');
+      diagramViewer.className = 'diagram-viewer';
+      diagramViewer.setAttribute('role', 'dialog');
+      diagramViewer.setAttribute('aria-modal', 'true');
+      diagramViewer.setAttribute('aria-label', '${t('docMermaidDialog')}');
+      diagramViewer.setAttribute('aria-hidden', 'true');
+      diagramViewer.inert = true;
+
+      const diagramPanel = document.createElement('div');
+      diagramPanel.className = 'diagram-viewer-panel';
+      const diagramHeader = document.createElement('div');
+      diagramHeader.className = 'diagram-viewer-header';
+      const diagramClose = document.createElement('button');
+      diagramClose.className = 'diagram-viewer-close';
+      diagramClose.type = 'button';
+      diagramClose.textContent = '×';
+      diagramClose.setAttribute('aria-label', '${t('docCloseMermaid')}');
+      diagramClose.title = '${t('docCloseMermaid')}';
+      diagramHeader.appendChild(diagramClose);
+
+      const diagramViewport = document.createElement('div');
+      diagramViewport.className = 'diagram-viewer-viewport';
+      diagramViewport.tabIndex = 0;
+      diagramViewport.setAttribute('role', 'region');
+      diagramViewport.setAttribute('aria-label', '${t('docMermaidHelp')}');
+      const diagramStage = document.createElement('div');
+      diagramStage.className = 'diagram-viewer-stage';
+      diagramViewport.appendChild(diagramStage);
+      diagramPanel.appendChild(diagramHeader);
+      diagramPanel.appendChild(diagramViewport);
+      diagramViewer.appendChild(diagramPanel);
+      document.body.appendChild(diagramViewer);
+
+      let diagramOpener = null;
+      let diagramSequence = 0;
+      let diagramWidth = 0;
+      let diagramHeight = 0;
+      let fitScale = 1;
+      let diagramScale = 1;
+      let diagramX = 0;
+      let diagramY = 0;
+      let dragState = null;
+      let pinchState = null;
+      let lastTouchTap = null;
+      const activePointers = new Map();
+      const tapStarts = new Map();
+
+      function setDiagramTransform(interacting) {
+        diagramStage.classList.toggle('is-interacting', !!interacting);
+        diagramStage.style.transform = 'translate(' + diagramX + 'px, ' + diagramY + 'px) scale(' + diagramScale + ')';
+      }
+
+      function fitDiagramToViewport() {
+        if (!diagramWidth || !diagramHeight || !diagramViewport.clientWidth || !diagramViewport.clientHeight) return;
+        fitScale = Math.min(diagramViewport.clientWidth / diagramWidth, diagramViewport.clientHeight / diagramHeight);
+        diagramScale = fitScale;
+        diagramX = (diagramViewport.clientWidth - diagramWidth * diagramScale) / 2;
+        diagramY = (diagramViewport.clientHeight - diagramHeight * diagramScale) / 2;
+        setDiagramTransform(true);
+        window.requestAnimationFrame(function() { diagramStage.classList.remove('is-interacting'); });
+      }
+
+      function resetDiagramView() {
+        if (!diagramWidth || !diagramHeight) return;
+        fitScale = Math.min(diagramViewport.clientWidth / diagramWidth, diagramViewport.clientHeight / diagramHeight);
+        diagramScale = fitScale;
+        diagramX = (diagramViewport.clientWidth - diagramWidth * diagramScale) / 2;
+        diagramY = (diagramViewport.clientHeight - diagramHeight * diagramScale) / 2;
+        setDiagramTransform(false);
+      }
+
+      function cloneDiagramSvg(sourceSvg) {
+        const clone = sourceSvg.cloneNode(true);
+        const idMap = new Map();
+        const nodes = [clone].concat(Array.from(clone.querySelectorAll('[id]')));
+        nodes.forEach(function(node) {
+          if (!node.id) return;
+          const oldId = node.id;
+          const newId = 'diagram-viewer-' + diagramSequence + '-' + oldId;
+          diagramSequence += 1;
+          idMap.set(oldId, newId);
+          node.id = newId;
+        });
+        [clone].concat(Array.from(clone.querySelectorAll('*'))).forEach(function(node) {
+          Array.from(node.attributes || []).forEach(function(attribute) {
+            let value = attribute.value;
+            value = value.replace(/url\(#([^)]+)\)/g, function(match, id) {
+              return idMap.has(id) ? 'url(#' + idMap.get(id) + ')' : match;
+            });
+            if ((attribute.name === 'href' || attribute.name === 'xlink:href') && value.charAt(0) === '#' && idMap.has(value.slice(1))) {
+              value = '#' + idMap.get(value.slice(1));
+            }
+            if (attribute.name === 'aria-labelledby' || attribute.name === 'aria-describedby') {
+              value = value.split(/\s+/).map(function(id) { return idMap.get(id) || id; }).join(' ');
+            }
+            if (value !== attribute.value) {
+              if (attribute.namespaceURI) node.setAttributeNS(attribute.namespaceURI, attribute.name, value);
+              else node.setAttribute(attribute.name, value);
+            }
+          });
+        });
+
+        let box = null;
+        try { box = sourceSvg.viewBox && sourceSvg.viewBox.baseVal; } catch (e) {}
+        let width = box && box.width;
+        let height = box && box.height;
+        let minX = box && box.x;
+        let minY = box && box.y;
+        if (!(width > 0 && height > 0)) {
+          try {
+            const bounds = sourceSvg.getBBox();
+            width = bounds.width;
+            height = bounds.height;
+            minX = bounds.x;
+            minY = bounds.y;
+          } catch (e) {}
+        }
+        if (!(width > 0 && height > 0)) {
+          const rect = sourceSvg.getBoundingClientRect();
+          width = rect.width;
+          height = rect.height;
+          minX = 0;
+          minY = 0;
+        }
+        if (!(width > 0 && height > 0)) return null;
+        if (!(box && box.width > 0 && box.height > 0)) clone.setAttribute('viewBox', minX + ' ' + minY + ' ' + width + ' ' + height);
+        clone.setAttribute('width', String(width));
+        clone.setAttribute('height', String(height));
+        return { svg: clone, width: width, height: height };
+      }
+
+      function openDiagramViewer(svg, opener) {
+        const result = cloneDiagramSvg(svg);
+        if (!result) return;
+        diagramOpener = opener;
+        diagramWidth = result.width;
+        diagramHeight = result.height;
+        diagramStage.replaceChildren(result.svg);
+        diagramViewer.classList.add('is-open');
+        diagramViewer.setAttribute('aria-hidden', 'false');
+        diagramViewer.inert = false;
+        diagramClose.focus();
+        window.requestAnimationFrame(fitDiagramToViewport);
+      }
+
+      function closeDiagramViewer() {
+        if (!diagramViewer.classList.contains('is-open')) return;
+        diagramViewer.classList.remove('is-open');
+        diagramViewer.setAttribute('aria-hidden', 'true');
+        diagramViewer.inert = true;
+        activePointers.clear();
+        tapStarts.clear();
+        dragState = null;
+        pinchState = null;
+        diagramViewport.classList.remove('is-dragging');
+        if (diagramOpener) diagramOpener.focus();
+      }
+
+      const svgElements = Array.from(markdownBody ? markdownBody.querySelectorAll('.mermaid svg, .block-language-mermaid svg, .mermaid-rendered svg, pre.language-mermaid svg') : []);
+      const diagramCards = [];
+      svgElements.forEach(function(svg) {
+        let card = svg.closest('.mermaid, .mermaid-rendered, .block-language-mermaid, pre.language-mermaid');
+        while (card && card.parentElement) {
+          const outerCard = card.parentElement.closest('.mermaid, .mermaid-rendered, .block-language-mermaid, pre.language-mermaid');
+          if (!outerCard || !markdownBody.contains(outerCard)) break;
+          card = outerCard;
+        }
+        if (card && diagramCards.indexOf(card) === -1) diagramCards.push(card);
+      });
+      diagramCards.forEach(function(card) {
+        let shell = card.parentElement && card.parentElement.classList.contains('mermaid-view-shell') ? card.parentElement : null;
+        if (!shell) {
+          shell = document.createElement('div');
+          shell.className = 'mermaid-view-shell';
+          card.parentNode.insertBefore(shell, card);
+          shell.appendChild(card);
+        }
+        if (shell.querySelector('.mermaid-view-button')) return;
+        const svg = card.querySelector('svg');
+        if (!svg) return;
+        const viewButton = document.createElement('button');
+        viewButton.className = 'mermaid-view-button';
+        viewButton.type = 'button';
+        viewButton.innerHTML = '${ICON_EXPAND}';
+        viewButton.setAttribute('aria-label', '${t('docOpenMermaid')}');
+        viewButton.title = '${t('docOpenMermaid')}';
+        viewButton.addEventListener('click', function() { openDiagramViewer(svg, viewButton); });
+        shell.appendChild(viewButton);
+      });
+
+      diagramClose.addEventListener('click', closeDiagramViewer);
+      diagramViewer.addEventListener('click', function(event) {
+        if (event.target === diagramViewer) closeDiagramViewer();
+      });
+      document.addEventListener('keydown', function(event) {
+        if (!diagramViewer.classList.contains('is-open')) return;
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          closeDiagramViewer();
+        } else if (event.key === 'Tab') {
+          event.preventDefault();
+          if (document.activeElement === diagramClose) diagramViewport.focus();
+          else diagramClose.focus();
+        }
+      });
+      window.addEventListener('resize', function() {
+        if (diagramViewer.classList.contains('is-open')) fitDiagramToViewport();
+      });
+
+      function zoomDiagramAt(nextScale, pointX, pointY) {
+        const minScale = fitScale * 0.25;
+        const maxScale = fitScale * 10;
+        nextScale = Math.max(minScale, Math.min(maxScale, nextScale));
+        const ratio = nextScale / diagramScale;
+        diagramX = pointX - (pointX - diagramX) * ratio;
+        diagramY = pointY - (pointY - diagramY) * ratio;
+        diagramScale = nextScale;
+        setDiagramTransform(false);
+      }
+
+      diagramViewport.addEventListener('wheel', function(event) {
+        if (!diagramViewer.classList.contains('is-open')) return;
+        event.preventDefault();
+        const rect = diagramViewport.getBoundingClientRect();
+        const pointX = event.clientX - rect.left;
+        const pointY = event.clientY - rect.top;
+        const deltaMultiplier = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? rect.height : 1;
+        zoomDiagramAt(diagramScale * Math.exp(-event.deltaY * deltaMultiplier * 0.0015), pointX, pointY);
+      }, { passive: false });
+
+      diagramViewport.addEventListener('pointerdown', function(event) {
+        if (!diagramViewer.classList.contains('is-open')) return;
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
+        event.preventDefault();
+        diagramViewport.setPointerCapture(event.pointerId);
+        const point = { x: event.clientX, y: event.clientY, type: event.pointerType };
+        activePointers.set(event.pointerId, point);
+        tapStarts.set(event.pointerId, { x: point.x, y: point.y, time: Date.now(), type: point.type });
+        diagramStage.classList.add('is-interacting');
+        if (activePointers.size === 1) {
+          diagramViewport.classList.add('is-dragging');
+          dragState = { id: event.pointerId, clientX: point.x, clientY: point.y, x: diagramX, y: diagramY };
+          pinchState = null;
+        } else if (activePointers.size === 2) {
+          diagramViewport.classList.remove('is-dragging');
+          lastTouchTap = null;
+          const pair = Array.from(activePointers.values());
+          const rect = diagramViewport.getBoundingClientRect();
+          const centerX = (pair[0].x + pair[1].x) / 2 - rect.left;
+          const centerY = (pair[0].y + pair[1].y) / 2 - rect.top;
+          const dx = pair[0].x - pair[1].x;
+          const dy = pair[0].y - pair[1].y;
+          pinchState = {
+            distance: Math.max(1, Math.sqrt(dx * dx + dy * dy)),
+            scale: diagramScale,
+            x: diagramX,
+            y: diagramY,
+            centerX: centerX,
+            centerY: centerY
+          };
+          dragState = null;
+        }
+      });
+
+      diagramViewport.addEventListener('pointermove', function(event) {
+        if (!activePointers.has(event.pointerId)) return;
+        const point = activePointers.get(event.pointerId);
+        point.x = event.clientX;
+        point.y = event.clientY;
+        if (activePointers.size >= 2 && pinchState) {
+          const pair = Array.from(activePointers.values());
+          const rect = diagramViewport.getBoundingClientRect();
+          const centerX = (pair[0].x + pair[1].x) / 2 - rect.left;
+          const centerY = (pair[0].y + pair[1].y) / 2 - rect.top;
+          const dx = pair[0].x - pair[1].x;
+          const dy = pair[0].y - pair[1].y;
+          const distance = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+          const nextScale = Math.max(fitScale * 0.25, Math.min(fitScale * 10, pinchState.scale * distance / pinchState.distance));
+          const ratio = nextScale / pinchState.scale;
+          diagramX = centerX - (pinchState.centerX - pinchState.x) * ratio;
+          diagramY = centerY - (pinchState.centerY - pinchState.y) * ratio;
+          diagramScale = nextScale;
+          setDiagramTransform(true);
+        } else if (dragState && dragState.id === event.pointerId) {
+          diagramX = dragState.x + event.clientX - dragState.clientX;
+          diagramY = dragState.y + event.clientY - dragState.clientY;
+          setDiagramTransform(true);
+        }
+      });
+
+      function finishDiagramPointer(event) {
+        if (!activePointers.has(event.pointerId)) return;
+        const point = activePointers.get(event.pointerId);
+        const start = tapStarts.get(event.pointerId);
+        const wasTap = event.type !== 'pointercancel' && start && Math.hypot(point.x - start.x, point.y - start.y) < 12 && Date.now() - start.time < 350;
+        activePointers.delete(event.pointerId);
+        tapStarts.delete(event.pointerId);
+        if (wasTap && start.type === 'touch') {
+          const now = Date.now();
+          if (lastTouchTap && now - lastTouchTap.time < 350 && Math.hypot(point.x - lastTouchTap.x, point.y - lastTouchTap.y) < 28) {
+            resetDiagramView();
+            lastTouchTap = null;
+          } else lastTouchTap = { x: point.x, y: point.y, time: now };
+        }
+        if (activePointers.size === 1) {
+          const remaining = Array.from(activePointers.entries())[0];
+          const remainingPoint = remaining[1];
+          dragState = { id: remaining[0], clientX: remainingPoint.x, clientY: remainingPoint.y, x: diagramX, y: diagramY };
+          pinchState = null;
+          diagramViewport.classList.add('is-dragging');
+        } else {
+          dragState = null;
+          pinchState = null;
+          diagramViewport.classList.remove('is-dragging');
+          diagramStage.classList.remove('is-interacting');
+        }
+      }
+
+      diagramViewport.addEventListener('pointerup', finishDiagramPointer);
+      diagramViewport.addEventListener('pointercancel', finishDiagramPointer);
+      diagramViewport.addEventListener('lostpointercapture', finishDiagramPointer);
+      diagramViewport.addEventListener('dblclick', function(event) {
+        event.preventDefault();
+        resetDiagramView();
+      });
 
       // ── 2. 코드 블록 복사 ──────────────────────────────────────────────
       //

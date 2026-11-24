@@ -15,6 +15,9 @@ Works on **desktop and mobile**, including a native share sheet on iOS.
 - **Everything in one file** — images are embedded as data URIs, Mermaid diagrams are pre-rendered to static SVG, syntax highlighting is bundled as CSS. The file opens offline, forever.
 - **Preview before you export** — running the command opens a preview popup first. Nothing is written to disk until you choose an action; close the popup and nothing is left behind.
 - **Light / dark theme toggle** built into the exported page.
+- **Responsive full-width layout** adapts to narrow phones and wide screens without a fixed content width cap.
+- **Collapsible document outline** opens from the page header, follows all note headings, supports expand/collapse all, and scrolls to briefly highlighted headings.
+- **Interactive Mermaid diagrams** open in an offline viewer with wheel, drag, and pinch navigation; double-click or double-tap resets the view.
 - **One-click code copy** buttons on every code block.
 - **Obsidian syntax support** — callouts, wikilinks, task lists, highlights, tables, and frontmatter (rendered as a metadata chip bar).
 - **Your CSS snippets come along — but only the ones that apply.** If a note's look comes from a snippet (a card layout, a badge, a styled table), that CSS is bundled too. A snippet is included only when its selectors actually match the rendered note, so notes that use none stay exactly as small as before. Put `html-export-css: false` in a note's frontmatter to opt out, or `html-export-css: [my-snippet]` to force one in.
@@ -45,7 +48,7 @@ Works on **desktop and mobile**, including a native share sheet on iOS.
 
 ## Why the exported controls sometimes don't appear
 
-Some viewers — the iOS Files preview, simple HTML viewer apps — don't run JavaScript. In those viewers the exported page is fully readable, but the theme toggle and copy buttons are hidden on purpose, so you never see a button that does nothing. Open the same file in a regular browser and everything works.
+Some viewers — the iOS Files preview, simple HTML viewer apps — don't run JavaScript. In those viewers the exported page is fully readable, but the theme, outline, and copy controls are hidden on purpose, so you never see a button that does nothing. Open the same file in a regular browser and everything works.
 
 ## Limitations
 
