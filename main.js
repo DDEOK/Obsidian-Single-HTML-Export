@@ -2467,6 +2467,18 @@ ${this.getClientScripts()}
     .markdown-body .block-language-mermaid,
     .markdown-body .mermaid-rendered { position: relative; }
 
+    /* Viewer control belongs to a wrapper outside every horizontally scrolling Mermaid block. */
+    .markdown-body .mermaid-view-shell {
+      position: relative;
+      width: 100%;
+      min-width: 0;
+      margin: 1.6rem 0;
+    }
+    .markdown-body .mermaid-view-shell > .mermaid,
+    .markdown-body .mermaid-view-shell > .block-language-mermaid,
+    .markdown-body .mermaid-view-shell > .mermaid-rendered,
+    .markdown-body .mermaid-view-shell > pre.language-mermaid { margin: 0; }
+
     .mermaid-view-button {
       position: absolute;
       z-index: 4;
@@ -3029,14 +3041,26 @@ ${this.getClientScripts()}
         if (diagramOpener) diagramOpener.focus();
       }
 
-      const svgElements = Array.from(markdownBody ? markdownBody.querySelectorAll('.mermaid svg, .block-language-mermaid svg, .mermaid-rendered svg') : []);
+      const svgElements = Array.from(markdownBody ? markdownBody.querySelectorAll('.mermaid svg, .block-language-mermaid svg, .mermaid-rendered svg, pre.language-mermaid svg') : []);
       const diagramCards = [];
       svgElements.forEach(function(svg) {
-        const card = svg.closest('.mermaid, .mermaid-rendered, .block-language-mermaid');
+        let card = svg.closest('.mermaid, .mermaid-rendered, .block-language-mermaid, pre.language-mermaid');
+        while (card && card.parentElement) {
+          const outerCard = card.parentElement.closest('.mermaid, .mermaid-rendered, .block-language-mermaid, pre.language-mermaid');
+          if (!outerCard || !markdownBody.contains(outerCard)) break;
+          card = outerCard;
+        }
         if (card && diagramCards.indexOf(card) === -1) diagramCards.push(card);
       });
       diagramCards.forEach(function(card) {
-        if (card.querySelector('.mermaid-view-button')) return;
+        let shell = card.parentElement && card.parentElement.classList.contains('mermaid-view-shell') ? card.parentElement : null;
+        if (!shell) {
+          shell = document.createElement('div');
+          shell.className = 'mermaid-view-shell';
+          card.parentNode.insertBefore(shell, card);
+          shell.appendChild(card);
+        }
+        if (shell.querySelector('.mermaid-view-button')) return;
         const svg = card.querySelector('svg');
         if (!svg) return;
         const viewButton = document.createElement('button');
@@ -3046,7 +3070,7 @@ ${this.getClientScripts()}
         viewButton.setAttribute('aria-label', '${t('docOpenMermaid')}');
         viewButton.title = '${t('docOpenMermaid')}';
         viewButton.addEventListener('click', function() { openDiagramViewer(svg, viewButton); });
-        card.appendChild(viewButton);
+        shell.appendChild(viewButton);
       });
 
       diagramClose.addEventListener('click', closeDiagramViewer);
